@@ -126,13 +126,27 @@ export default function ContentDetailPage() {
     }
     if (!content) return;
 
+    // Contenu gratuit - accès direct
+    const isFreeContent = content.isFree || content.price === 0 || content.price === null;
+    if (isFreeContent) {
+      setIsPurchased(true);
+      toast.success('Accès accordé !');
+      return;
+    }
+
     try {
       await purchasesService.purchase(content.id);
       setIsPurchased(true);
       toast.success('Achat effectué avec succès !');
       loadContent();
-    } catch (err) {
-      toast.error('Erreur lors de l\'achat');
+    } catch (err: any) {
+      // Gérer l'erreur si contenu déjà acheté ou gratuit
+      if (err?.response?.status === 400) {
+        setIsPurchased(true);
+        toast.info('Vous avez déjà accès à ce contenu');
+      } else {
+        toast.error('Erreur lors de l\'achat');
+      }
     }
   };
 
@@ -213,7 +227,11 @@ export default function ContentDetailPage() {
   const TypeIcon = typeIcons[content.type] || BookOpen;
   const typeInfo = contentTypes[content.type] || contentTypes.ARTICLE;
   const authorRole = content.author?.role ? userRoles[content.author.role as keyof typeof userRoles] : userRoles.CREATEUR;
-  const canAccess = content.isFree || isPurchased;
+  
+  // Un contenu est gratuit si isFree=true OU si price est 0/null/undefined
+  const isFreeContent = content.isFree || content.price === 0 || content.price === null || content.price === undefined;
+  // L'utilisateur a accès si le contenu est gratuit OU s'il l'a déjà acheté
+  const canAccess = isFreeContent || isPurchased;
 
   return (
     <div className="min-h-screen py-8">
@@ -424,8 +442,11 @@ export default function ContentDetailPage() {
               <CardContent className="p-6">
                 <div className="text-center mb-6">
                   <p className="text-3xl font-bold text-gradient-gold">
-                    {content.isFree ? 'Gratuit' : formatPrice(content.price)}
+                    {isFreeContent ? 'Gratuit' : formatPrice(content.price)}
                   </p>
+                  {isFreeContent && (
+                    <p className="text-sm text-green-500 mt-1">Accès libre</p>
+                  )}
                 </div>
 
                 {canAccess ? (
@@ -497,9 +518,26 @@ export default function ContentDetailPage() {
                 <Button 
                   variant="ghost" 
                   className="w-full"
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    toast.success('Lien copié !');
+                  onClick={async () => {
+                    try {
+                      if (navigator?.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(window.location.href);
+                        toast.success('Lien copié !');
+                      } else {
+                        // Fallback pour les navigateurs sans API clipboard
+                        const textArea = document.createElement('textarea');
+                        textArea.value = window.location.href;
+                        textArea.style.position = 'fixed';
+                        textArea.style.opacity = '0';
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        toast.success('Lien copié !');
+                      }
+                    } catch {
+                      toast.error('Impossible de copier le lien');
+                    }
                   }}
                 >
                   <Share2 className="h-4 w-4 mr-2" />

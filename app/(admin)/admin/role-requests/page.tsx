@@ -6,24 +6,25 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  Search, 
-  Filter,
+  UserCheck,
   Check,
   X,
-  AlertCircle,
-  UserCheck,
+  Eye,
   Clock,
+  AlertCircle,
   FileText,
-  Eye
+  MoreVertical,
+  Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -39,96 +40,136 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { roleUpgradesService } from '@/lib/api';
-import { RoleUpgradeRequest } from '@/types';
+import { RoleUpgradeRequest, PaginatedResponse } from '@/types';
 import { userRoles, formatRelativeDate } from '@/config/theme';
 import { toast } from 'sonner';
 
-const requestStatuses = {
-  PENDING: { label: 'En attente', color: '#F59E0B' },
-  APPROVED: { label: 'Approuvé', color: '#10B981' },
-  REJECTED: { label: 'Rejeté', color: '#EF4444' },
+const statusLabels: Record<string, { label: string; color: string }> = {
+  PENDING: { label: 'En attente', color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
+  UNDER_REVIEW: { label: 'En cours', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+  APPROVED: { label: 'Approuvé', color: 'text-green-600 bg-green-50 border-green-200' },
+  REJECTED: { label: 'Rejeté', color: 'text-red-600 bg-red-50 border-red-200' },
 };
 
 export default function AdminRoleRequestsPage() {
   const [requests, setRequests] = useState<RoleUpgradeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalElements, setTotalElements] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(20);
+  
+  // Filters
   const [statusFilter, setStatusFilter] = useState<string>('PENDING');
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
+  
+  // Dialogs
   const [selectedRequest, setSelectedRequest] = useState<RoleUpgradeRequest | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
 
-  const loadRequests = useCallback(async (reset = false) => {
+  const loadRequests = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const currentPage = reset ? 0 : page;
-      const response = await roleUpgradesService.getAll(currentPage, 20, statusFilter !== 'all' ? statusFilter : undefined);
       
-      if (reset) {
-        setRequests(response.content);
-        setPage(0);
-      } else {
-        setRequests(prev => [...prev, ...response.content]);
-      }
-      setTotal(response.totalElements);
-      setHasMore(response.hasNext);
+      const status = statusFilter === 'all' ? undefined : statusFilter as 'PENDING' | 'APPROVED' | 'REJECTED';
+      const data = await roleUpgradesService.getAll(currentPage, pageSize, status);
+      
+      setRequests(data.content);
+      setTotalElements(data.totalElements);
     } catch (err) {
       console.error('Erreur chargement demandes:', err);
       setError('Impossible de charger les demandes.');
     } finally {
       setIsLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [currentPage, pageSize, statusFilter]);
 
   useEffect(() => {
-    loadRequests(true);
-  }, [statusFilter]);
+    loadRequests();
+  }, [loadRequests]);
 
-  const handleApprove = async (request: RoleUpgradeRequest) => {
+  const handleApprove = async () => {
+    if (!selectedRequest) return;
+
     try {
-      await roleUpgradesService.approve(request.id);
-      setRequests(prev => prev.map(r => 
-        r.id === request.id ? { ...r, status: 'APPROVED' } : r
-      ));
-      toast.success('Demande approuvée');
-      setDetailsOpen(false);
+      await roleUpgradesService.approve(selectedRequest.id);
+      toast.success(`Demande de ${selectedRequest.user?.username} approuvée`);
+      setApproveDialogOpen(false);
+      setSelectedRequest(null);
+      loadRequests();
     } catch (err) {
       toast.error('Erreur lors de l\'approbation');
     }
   };
 
   const handleReject = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || !rejectReason.trim()) {
+      toast.error('Veuillez indiquer une raison');
+      return;
+    }
 
     try {
       await roleUpgradesService.reject(selectedRequest.id, rejectReason);
-      setRequests(prev => prev.map(r => 
-        r.id === selectedRequest.id ? { ...r, status: 'REJECTED', rejectReason } : r
-      ));
-      toast.success('Demande rejetée');
+      toast.success(`Demande de ${selectedRequest.user?.username} rejetée`);
       setRejectDialogOpen(false);
-      setDetailsOpen(false);
+      setSelectedRequest(null);
       setRejectReason('');
+      loadRequests();
     } catch (err) {
       toast.error('Erreur lors du rejet');
     }
   };
 
+  const handleMarkAsReviewing = async (request: RoleUpgradeRequest) => {
+    try {
+      await roleUpgradesService.markAsReviewing(request.id);
+      toast.success('Demande marquée comme en cours de revue');
+      loadRequests();
+    } catch (err) {
+      toast.error('Erreur');
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const info = statusLabels[status] || statusLabels.PENDING;
+    return (
+      <Badge variant="outline" className={info.color}>
+        {info.label}
+      </Badge>
+    );
+  };
+
+  const totalPages = Math.ceil(totalElements / pageSize);
+
   if (error && requests.length === 0) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Demandes de rôle</h1>
+        <h1 className="text-3xl font-bold">Demandes de changement de rôle</h1>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button onClick={() => loadRequests(true)}>Réessayer</Button>
+        <Button onClick={loadRequests}>Réessayer</Button>
       </div>
     );
   }
@@ -136,147 +177,135 @@ export default function AdminRoleRequestsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Demandes de rôle</h1>
-        <p className="text-muted-foreground">
-          {total} demande{total > 1 ? 's' : ''}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Demandes de rôle</h1>
+          <p className="text-muted-foreground">
+            {totalElements} demande{totalElements > 1 ? 's' : ''}
+          </p>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+      {/* Filter */}
+      <div className="flex gap-4">
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(0); }}>
           <SelectTrigger className="w-[200px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Statut" />
+            <SelectValue placeholder="Filtrer par statut" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les statuts</SelectItem>
-            {Object.entries(requestStatuses).map(([key, info]) => (
-              <SelectItem key={key} value={key}>{info.label}</SelectItem>
-            ))}
+            <SelectItem value="PENDING">En attente</SelectItem>
+            <SelectItem value="UNDER_REVIEW">En cours de revue</SelectItem>
+            <SelectItem value="APPROVED">Approuvées</SelectItem>
+            <SelectItem value="REJECTED">Rejetées</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* List */}
-      {isLoading && requests.length === 0 ? (
+      {isLoading ? (
         <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
       ) : requests.length > 0 ? (
-        <>
-          <div className="space-y-4">
-            {requests.map((request, index) => {
-              const statusInfo = requestStatuses[request.status as keyof typeof requestStatuses] || requestStatuses.PENDING;
-              const targetRole = userRoles[request.requestedRole as keyof typeof userRoles] || userRoles.CREATEUR;
-              const currentRole = request.user?.role 
-                ? userRoles[request.user.role as keyof typeof userRoles] || userRoles.APPRENANT
-                : userRoles.APPRENANT;
-
-              return (
-                <Card 
-                  key={request.id}
-                  className="hover:border-primary/30 transition-colors animate-fade-up"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      {/* User info */}
-                      <div className="flex items-center gap-4 flex-1">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={request.user?.profilePictureUrl || undefined} />
-                          <AvatarFallback style={{ backgroundColor: currentRole.color + '20', color: currentRole.color }}>
-                            {(request.user?.fullName || request.user?.username || 'U').charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-semibold">{request.user?.fullName || request.user?.username}</p>
-                          <p className="text-sm text-muted-foreground">@{request.user?.username}</p>
-                        </div>
-                      </div>
-
-                      {/* Role change */}
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" style={{ borderColor: currentRole.color, color: currentRole.color }}>
-                          {currentRole.label}
-                        </Badge>
-                        <span className="text-muted-foreground">→</span>
-                        <Badge style={{ backgroundColor: targetRole.color, color: 'white' }}>
-                          {targetRole.label}
-                        </Badge>
-                      </div>
-
-                      {/* Status */}
-                      <Badge 
-                        variant="outline"
-                        style={{ borderColor: statusInfo.color, color: statusInfo.color }}
-                      >
-                        {statusInfo.label}
+        <div className="space-y-4">
+          {requests.map((request) => (
+            <Card key={request.id}>
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={request.user?.profilePictureUrl} />
+                    <AvatarFallback>
+                      {request.user?.username?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold">
+                        {request.user?.fullName || request.user?.username}
+                      </h3>
+                      {getStatusBadge(request.status)}
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      @{request.user?.username} · {request.user?.email}
+                    </p>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant="outline">
+                        {userRoles[request.currentRole as keyof typeof userRoles]?.label || request.currentRole}
                       </Badge>
+                      <span className="text-muted-foreground">→</span>
+                      <Badge variant="secondary">
+                        {userRoles[request.requestedRole as keyof typeof userRoles]?.label || request.requestedRole}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                      {request.motivation}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <Clock className="h-3 w-3 inline mr-1" />
+                      {formatRelativeDate(request.createdAt)}
+                    </p>
+                  </div>
 
-                      {/* Date */}
-                      <span className="text-sm text-muted-foreground">
-                        {formatRelativeDate(request.createdAt)}
-                      </span>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    {request.status === 'PENDING' && (
+                      <>
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={() => {
                             setSelectedRequest(request);
-                            setDetailsOpen(true);
+                            setApproveDialogOpen(true);
                           }}
                         >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Détails
+                          <Check className="h-4 w-4 mr-1" />
+                          Approuver
                         </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setRejectDialogOpen(true);
+                          }}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Rejeter
+                        </Button>
+                      </>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedRequest(request);
+                          setDetailsDialogOpen(true);
+                        }}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Voir les détails
+                        </DropdownMenuItem>
                         {request.status === 'PENDING' && (
-                          <>
-                            <Button 
-                              size="sm" 
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => handleApprove(request)}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setRejectDialogOpen(true);
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
+                          <DropdownMenuItem onClick={() => handleMarkAsReviewing(request)}>
+                            <Clock className="h-4 w-4 mr-2" />
+                            Marquer en cours
+                          </DropdownMenuItem>
                         )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Load more */}
-          {hasMore && (
-            <div className="text-center">
-              <Button 
-                variant="outline" 
-                onClick={() => { setPage(p => p + 1); loadRequests(); }}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Chargement...' : 'Charger plus'}
-              </Button>
-            </div>
-          )}
-        </>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="text-center py-16">
           <UserCheck className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
@@ -284,99 +313,147 @@ export default function AdminRoleRequestsPage() {
           <p className="text-muted-foreground">
             {statusFilter === 'PENDING' 
               ? 'Aucune demande en attente'
-              : 'Aucune demande trouvée avec ce filtre'
+              : 'Aucune demande trouvée pour ce filtre'
             }
           </p>
         </div>
       )}
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage + 1} sur {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Details Dialog */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Détails de la demande</DialogTitle>
           </DialogHeader>
-          
           {selectedRequest && (
-            <div className="space-y-4">
-              {/* User */}
-              <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src={selectedRequest.user?.profilePictureUrl || undefined} />
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedRequest.user?.profilePictureUrl} />
                   <AvatarFallback>
-                    {(selectedRequest.user?.fullName || selectedRequest.user?.username || 'U').charAt(0).toUpperCase()}
+                    {selectedRequest.user?.username?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold">{selectedRequest.user?.fullName}</p>
-                  <p className="text-sm text-muted-foreground">@{selectedRequest.user?.username}</p>
-                  <p className="text-sm text-muted-foreground">{selectedRequest.user?.email}</p>
+                  <h3 className="font-semibold">{selectedRequest.user?.fullName}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    @{selectedRequest.user?.username}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.user?.email}
+                  </p>
                 </div>
               </div>
 
-              {/* Request details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Rôle actuel</Label>
+                  <p className="font-medium">
+                    {userRoles[selectedRequest.currentRole as keyof typeof userRoles]?.label}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Rôle demandé</Label>
+                  <p className="font-medium">
+                    {userRoles[selectedRequest.requestedRole as keyof typeof userRoles]?.label}
+                  </p>
+                </div>
+              </div>
+
               <div>
-                <p className="text-sm font-medium mb-1">Rôle demandé</p>
-                <Badge style={{ 
-                  backgroundColor: userRoles[selectedRequest.requestedRole as keyof typeof userRoles]?.color || '#666',
-                  color: 'white'
-                }}>
-                  {userRoles[selectedRequest.requestedRole as keyof typeof userRoles]?.label || selectedRequest.requestedRole}
-                </Badge>
+                <Label className="text-muted-foreground">Motivation</Label>
+                <p className="mt-1 p-3 bg-muted rounded-lg text-sm">
+                  {selectedRequest.motivation}
+                </p>
               </div>
 
-              {/* Motivation */}
-              {selectedRequest.motivation && (
+              {selectedRequest.documents && selectedRequest.documents.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium mb-1">Motivation</p>
-                  <p className="text-muted-foreground bg-muted p-3 rounded-lg">
-                    {selectedRequest.motivation}
+                  <Label className="text-muted-foreground">Documents joints</Label>
+                  <div className="mt-2 space-y-2">
+                    {selectedRequest.documents.map((doc, i) => (
+                      <a 
+                        key={i}
+                        href={doc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-2 bg-muted rounded hover:bg-muted/80 transition-colors"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span className="text-sm">Document {i + 1}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedRequest.rejectionReason && (
+                <div>
+                  <Label className="text-muted-foreground">Raison du rejet</Label>
+                  <p className="mt-1 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                    {selectedRequest.rejectionReason}
                   </p>
                 </div>
               )}
 
-              {/* Documents */}
-              {selectedRequest.documentUrl && (
-                <div>
-                  <p className="text-sm font-medium mb-1">Documents joints</p>
-                  <Button variant="outline" asChild>
-                    <a href={selectedRequest.documentUrl} target="_blank" rel="noopener noreferrer">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Voir le document
-                    </a>
-                  </Button>
-                </div>
-              )}
-
-              {/* Reject reason if rejected */}
-              {selectedRequest.status === 'REJECTED' && selectedRequest.rejectReason && (
-                <div>
-                  <p className="text-sm font-medium mb-1 text-red-500">Raison du rejet</p>
-                  <p className="text-muted-foreground bg-red-50 dark:bg-red-950 p-3 rounded-lg">
-                    {selectedRequest.rejectReason}
-                  </p>
-                </div>
-              )}
+              <div className="text-xs text-muted-foreground">
+                Demande créée le {new Date(selectedRequest.createdAt).toLocaleDateString('fr-FR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
             </div>
           )}
-
           <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>
+              Fermer
+            </Button>
             {selectedRequest?.status === 'PENDING' && (
               <>
                 <Button 
                   variant="outline"
+                  className="text-destructive"
                   onClick={() => {
+                    setDetailsDialogOpen(false);
                     setRejectDialogOpen(true);
                   }}
                 >
-                  <X className="h-4 w-4 mr-2" />
                   Rejeter
                 </Button>
-                <Button 
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={() => handleApprove(selectedRequest)}
-                >
-                  <Check className="h-4 w-4 mr-2" />
+                <Button onClick={() => {
+                  setDetailsDialogOpen(false);
+                  setApproveDialogOpen(true);
+                }}>
                   Approuver
                 </Button>
               </>
@@ -385,33 +462,51 @@ export default function AdminRoleRequestsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Approve Dialog */}
+      <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approuver cette demande ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedRequest?.user?.username} deviendra {' '}
+              {userRoles[selectedRequest?.requestedRole as keyof typeof userRoles]?.label}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApprove}>
+              Approuver
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rejeter la demande</DialogTitle>
             <DialogDescription>
-              Indiquez la raison du rejet. Cette information sera envoyée à l'utilisateur.
+              Expliquez la raison du rejet à {selectedRequest?.user?.username}
             </DialogDescription>
           </DialogHeader>
-          
-          <Textarea
-            placeholder="Raison du rejet..."
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            rows={4}
-          />
-
+          <div className="py-4">
+            <Label htmlFor="reason">Raison du rejet</Label>
+            <Textarea
+              id="reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Documents manquants, profil incomplet..."
+              rows={4}
+              className="mt-2"
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
               Annuler
             </Button>
-            <Button 
-              variant="destructive"
-              onClick={handleReject}
-              disabled={!rejectReason.trim()}
-            >
-              Confirmer le rejet
+            <Button variant="destructive" onClick={handleReject} disabled={!rejectReason.trim()}>
+              Rejeter
             </Button>
           </DialogFooter>
         </DialogContent>

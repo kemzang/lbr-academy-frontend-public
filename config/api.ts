@@ -137,15 +137,28 @@ export const API_CONFIG = {
     
     // Admin
     ADMIN: {
+      // Dashboard
       DASHBOARD: '/admin/dashboard',
+      ANALYTICS: '/admin/dashboard/analytics',
+      TOP_CONTENTS: '/admin/dashboard/top-contents',
+      TOP_CREATORS: '/admin/dashboard/top-creators',
+      RECENT_ACTIVITY: '/admin/dashboard/recent-activity',
+      USER_DISTRIBUTION: '/admin/dashboard/user-distribution',
+      REVENUE_CHART: '/admin/dashboard/revenue-chart',
+      
+      // Users
       USERS: '/admin/users',
+      CHANGE_ROLE: (id: number) => `/admin/users/${id}/role`,
       SUSPEND_USER: (id: number) => `/admin/users/${id}/suspend`,
       ACTIVATE_USER: (id: number) => `/admin/users/${id}/activate`,
-      CHANGE_ROLE: (id: number) => `/admin/users/${id}/role`,
+      
+      // Contents
+      CONTENTS: '/admin/contents',
       PENDING_CONTENTS: '/admin/contents/pending',
       APPROVE_CONTENT: (id: number) => `/admin/contents/${id}/approve`,
       REJECT_CONTENT: (id: number) => `/admin/contents/${id}/reject`,
       FEATURE_CONTENT: (id: number) => `/admin/contents/${id}/feature`,
+      DELETE_CONTENT: (id: number) => `/admin/contents/${id}`,
     },
   },
 } as const;

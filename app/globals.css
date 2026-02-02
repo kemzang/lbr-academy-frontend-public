@@ -157,8 +157,10 @@
   
   /* Text gradient */
   .text-gradient-gold {
-    @apply bg-clip-text text-transparent;
     background: linear-gradient(135deg, hsl(var(--gold-300)) 0%, hsl(var(--gold-500)) 50%, hsl(var(--gold-300)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   
   /* Glow effects */

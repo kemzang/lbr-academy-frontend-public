@@ -8,32 +8,28 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Search, 
-  Filter,
+  Search,
   MoreVertical,
-  Eye,
   Check,
   X,
+  Star,
+  Eye,
+  ShoppingCart,
+  Trash2,
   AlertCircle,
   BookOpen,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Archive
+  FileText,
+  Video,
+  Headphones,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -46,95 +42,186 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { adminService } from '@/lib/api';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { adminService } from '@/lib/api/admin';
 import { Content } from '@/types';
-import { contentTypes, contentStatuses, formatPrice, formatRelativeDate } from '@/config/theme';
+import { contentTypes, contentStatuses, formatPrice } from '@/config/theme';
 import { toast } from 'sonner';
 
-const statusIcons = {
-  DRAFT: Clock,
-  PENDING_REVIEW: Clock,
-  APPROVED: CheckCircle,
-  REJECTED: XCircle,
-  ARCHIVED: Archive,
-};
+const contentTypesList = ['BOOK', 'EBOOK', 'AUDIOBOOK', 'FORMATION', 'ARTICLE', 'PODCAST', 'VIDEO', 'SERIES'];
+const statusList = ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED'];
 
 export default function AdminContentsPage() {
   const searchParams = useSearchParams();
-  const initialStatus = searchParams.get('status') || 'all';
+  const initialStatus = searchParams.get('status') || '';
   
   const [contents, setContents] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalElements, setTotalElements] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(20);
+  
+  // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  
+  // Dialogs
+  const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const loadContents = useCallback(async (reset = false) => {
+  const loadContents = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const currentPage = reset ? 0 : page;
-      const response = await adminService.getContents(
-        currentPage, 
-        20, 
-        statusFilter !== 'all' ? statusFilter : undefined,
-        typeFilter !== 'all' ? typeFilter : undefined
-      );
       
-      if (reset) {
-        setContents(response.content);
-        setPage(0);
-      } else {
-        setContents(prev => [...prev, ...response.content]);
-      }
-      setTotal(response.totalElements);
-      setHasMore(response.hasNext);
+      const data = await adminService.getContents(currentPage, pageSize, {
+        status: statusFilter || undefined,
+        type: typeFilter || undefined,
+        search: searchQuery || undefined,
+      });
+      
+      setContents(data.content);
+      setTotalElements(data.totalElements);
     } catch (err) {
       console.error('Erreur chargement contenus:', err);
       setError('Impossible de charger les contenus.');
     } finally {
       setIsLoading(false);
     }
-  }, [page, statusFilter, typeFilter]);
+  }, [currentPage, pageSize, statusFilter, typeFilter, searchQuery]);
 
   useEffect(() => {
-    loadContents(true);
-  }, [statusFilter, typeFilter]);
+    loadContents();
+  }, [loadContents]);
 
-  const handleApprove = async (contentId: number) => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage === 0) {
+        loadContents();
+      } else {
+        setCurrentPage(0);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleApprove = async (content: Content) => {
     try {
-      await adminService.approveContent(contentId);
-      setContents(prev => prev.map(c => 
-        c.id === contentId ? { ...c, status: 'APPROVED' } : c
-      ));
-      toast.success('Contenu approuvé');
+      await adminService.approveContent(content.id);
+      toast.success(`"${content.title}" a été approuvé`);
+      loadContents();
     } catch (err) {
       toast.error('Erreur lors de l\'approbation');
     }
   };
 
-  const handleReject = async (contentId: number) => {
+  const handleReject = async () => {
+    if (!selectedContent || !rejectReason.trim()) {
+      toast.error('Veuillez indiquer une raison');
+      return;
+    }
+
     try {
-      await adminService.rejectContent(contentId);
-      setContents(prev => prev.map(c => 
-        c.id === contentId ? { ...c, status: 'REJECTED' } : c
-      ));
-      toast.success('Contenu rejeté');
+      await adminService.rejectContent(selectedContent.id, rejectReason);
+      toast.success(`"${selectedContent.title}" a été rejeté`);
+      setRejectDialogOpen(false);
+      setSelectedContent(null);
+      setRejectReason('');
+      loadContents();
     } catch (err) {
       toast.error('Erreur lors du rejet');
     }
   };
 
-  const filteredContents = contents.filter(c =>
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleToggleFeature = async (content: Content) => {
+    try {
+      await adminService.toggleFeatureContent(content.id);
+      toast.success(content.isFeatured 
+        ? `"${content.title}" n'est plus mis en avant`
+        : `"${content.title}" est maintenant mis en avant`
+      );
+      loadContents();
+    } catch (err) {
+      toast.error('Erreur');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedContent) return;
+
+    try {
+      await adminService.deleteContent(selectedContent.id);
+      toast.success(`"${selectedContent.title}" a été supprimé`);
+      setDeleteDialogOpen(false);
+      setSelectedContent(null);
+      loadContents();
+    } catch (err) {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusInfo = contentStatuses[status as keyof typeof contentStatuses];
+    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+      DRAFT: 'secondary',
+      PENDING_REVIEW: 'outline',
+      APPROVED: 'default',
+      REJECTED: 'destructive',
+    };
+    return (
+      <Badge variant={variants[status] || 'outline'} style={{ borderColor: statusInfo?.color }}>
+        {statusInfo?.label || status}
+      </Badge>
+    );
+  };
+
+  const getTypeIcon = (type: string) => {
+    const icons: Record<string, any> = {
+      BOOK: BookOpen,
+      EBOOK: BookOpen,
+      ARTICLE: FileText,
+      VIDEO: Video,
+      AUDIOBOOK: Headphones,
+      PODCAST: Headphones,
+    };
+    const Icon = icons[type] || FileText;
+    return <Icon className="h-4 w-4" />;
+  };
+
+  const totalPages = Math.ceil(totalElements / pageSize);
 
   if (error && contents.length === 0) {
     return (
@@ -144,7 +231,7 @@ export default function AdminContentsPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button onClick={() => loadContents(true)}>Réessayer</Button>
+        <Button onClick={loadContents}>Réessayer</Button>
       </div>
     );
   }
@@ -152,16 +239,18 @@ export default function AdminContentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Gestion des contenus</h1>
-        <p className="text-muted-foreground">
-          {total} contenu{total > 1 ? 's' : ''}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Gestion des contenus</h1>
+          <p className="text-muted-foreground">
+            {totalElements} contenu{totalElements > 1 ? 's' : ''} au total
+          </p>
+        </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher un contenu..."
@@ -170,187 +259,266 @@ export default function AdminContentsPage() {
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setCurrentPage(0); }}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Statut" />
+            <SelectValue placeholder="Tous les statuts" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les statuts</SelectItem>
-            {Object.entries(contentStatuses).map(([key, info]) => (
-              <SelectItem key={key} value={key}>{info.label}</SelectItem>
+            {statusList.map(status => (
+              <SelectItem key={status} value={status}>
+                {contentStatuses[status as keyof typeof contentStatuses]?.label || status}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Type" />
+        <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v === 'all' ? '' : v); setCurrentPage(0); }}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Tous les types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les types</SelectItem>
-            {Object.entries(contentTypes).map(([key, info]) => (
-              <SelectItem key={key} value={key}>{info.label}</SelectItem>
+            {contentTypesList.map(type => (
+              <SelectItem key={type} value={type}>
+                {contentTypes[type as keyof typeof contentTypes]?.label || type}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
       {/* Table */}
-      {isLoading && contents.length === 0 ? (
+      {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className="h-20" />
           ))}
         </div>
       ) : (
-        <>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Contenu</TableHead>
-                  <TableHead>Auteur</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Prix</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContents.map((content) => {
-                  const typeInfo = contentTypes[content.type] || contentTypes.ARTICLE;
-                  const statusInfo = contentStatuses[content.status] || contentStatuses.DRAFT;
-                  const StatusIcon = statusIcons[content.status] || Clock;
-                  
-                  return (
-                    <TableRow key={content.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-12 h-12 rounded flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: typeInfo.color + '20' }}
-                          >
-                            {content.coverUrl ? (
-                              <img 
-                                src={content.coverUrl} 
-                                alt=""
-                                className="w-full h-full object-cover rounded"
-                              />
-                            ) : (
-                              <BookOpen className="h-5 w-5" style={{ color: typeInfo.color }} />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium line-clamp-1">{content.title}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {content.summary}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {content.author && (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={content.author.profilePictureUrl || undefined} />
-                              <AvatarFallback className="text-xs">
-                                {(content.author.fullName || content.author.username).charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">
-                              {content.author.fullName || content.author.username}
-                            </span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge style={{ backgroundColor: typeInfo.color, color: 'white' }}>
-                          {typeInfo.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant="outline"
-                          style={{ borderColor: statusInfo.color, color: statusInfo.color }}
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {statusInfo.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {content.isFree ? (
-                          <span className="text-green-500">Gratuit</span>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Contenu</TableHead>
+                <TableHead>Auteur</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Prix</TableHead>
+                <TableHead>Stats</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contents.map((content) => (
+                <TableRow key={content.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                        {content.coverImageUrl ? (
+                          <img 
+                            src={content.coverImageUrl} 
+                            alt="" 
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
-                          formatPrice(content.price)
+                          <div className="w-full h-full flex items-center justify-center">
+                            {getTypeIcon(content.type)}
+                          </div>
                         )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {formatRelativeDate(content.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="ghost">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/contents/${content.slug}`}>
-                                <Eye className="h-4 w-4 mr-2" />
-                                Voir
-                              </Link>
+                      </div>
+                      <div className="min-w-0">
+                        <Link 
+                          href={`/contents/${content.slug}`}
+                          className="font-medium hover:text-primary line-clamp-1"
+                        >
+                          {content.title}
+                        </Link>
+                        {content.isFeatured && (
+                          <Badge variant="secondary" className="mt-1">
+                            <Star className="h-3 w-3 mr-1 fill-primary text-primary" />
+                            En vedette
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="text-sm">{content.author?.fullName || content.author?.username}</p>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {contentTypes[content.type as keyof typeof contentTypes]?.label || content.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {getStatusBadge(content.status)}
+                  </TableCell>
+                  <TableCell>
+                    {content.isFree ? (
+                      <span className="text-green-600 font-medium">Gratuit</span>
+                    ) : (
+                      formatPrice(content.price)
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Eye className="h-3 w-3" />
+                        {content.viewCount || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ShoppingCart className="h-3 w-3" />
+                        {content.purchaseCount || 0}
+                      </span>
+                      {content.rating && (
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                          {content.rating.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {content.status === 'PENDING_REVIEW' && (
+                          <>
+                            <DropdownMenuItem onClick={() => handleApprove(content)}>
+                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              Approuver
                             </DropdownMenuItem>
-                            {content.status === 'PENDING_REVIEW' && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  className="text-green-600"
-                                  onClick={() => handleApprove(content.id)}
-                                >
-                                  <Check className="h-4 w-4 mr-2" />
-                                  Approuver
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="text-red-600"
-                                  onClick={() => handleReject(content.id)}
-                                >
-                                  <X className="h-4 w-4 mr-2" />
-                                  Rejeter
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Load more */}
-          {hasMore && (
-            <div className="text-center">
-              <Button 
-                variant="outline" 
-                onClick={() => { setPage(p => p + 1); loadContents(); }}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Chargement...' : 'Charger plus'}
-              </Button>
-            </div>
-          )}
-
-          {filteredContents.length === 0 && !isLoading && (
-            <div className="text-center py-12">
-              <BookOpen className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-              <p className="text-muted-foreground">Aucun contenu trouvé</p>
-            </div>
-          )}
-        </>
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setSelectedContent(content);
+                                setRejectDialogOpen(true);
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2 text-red-600" />
+                              Rejeter
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem onClick={() => handleToggleFeature(content)}>
+                          <Star className="h-4 w-4 mr-2" />
+                          {content.isFeatured ? 'Retirer de la une' : 'Mettre en avant'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/contents/${content.slug}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Voir le contenu
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedContent(content);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
+
+      {contents.length === 0 && !isLoading && (
+        <div className="text-center py-12">
+          <BookOpen className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+          <p className="text-muted-foreground">Aucun contenu trouvé</p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage + 1} sur {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeter le contenu</DialogTitle>
+            <DialogDescription>
+              Expliquez la raison du rejet à l'auteur
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reason">Raison du rejet</Label>
+            <Textarea
+              id="reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Qualité insuffisante, contenu incomplet..."
+              rows={4}
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={handleReject} disabled={!rejectReason.trim()}>
+              Rejeter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le contenu ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Le contenu "{selectedContent?.title}" sera supprimé définitivement.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

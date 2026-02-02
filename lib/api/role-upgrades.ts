@@ -47,8 +47,17 @@ export const roleUpgradesService = {
   },
   
   // Rejeter (Admin)
-  async reject(id: number, adminNote?: string): Promise<RoleUpgradeRequest> {
-    const response = await apiClient.post<RoleUpgradeRequest>(ROLE_UPGRADES.REJECT(id), { adminNote });
+  async reject(id: number, reason?: string): Promise<RoleUpgradeRequest> {
+    const url = reason 
+      ? `${ROLE_UPGRADES.REJECT(id)}?reason=${encodeURIComponent(reason)}`
+      : ROLE_UPGRADES.REJECT(id);
+    const response = await apiClient.post<RoleUpgradeRequest>(url);
+    return response.data;
+  },
+  
+  // Marquer comme en cours de revue (Admin)
+  async markAsReviewing(id: number): Promise<RoleUpgradeRequest> {
+    const response = await apiClient.patch<RoleUpgradeRequest>(`${ROLE_UPGRADES.BASE}/${id}/review`);
     return response.data;
   },
 };

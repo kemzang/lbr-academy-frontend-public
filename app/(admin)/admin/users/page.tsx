@@ -6,32 +6,22 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  Search, 
-  Filter,
+  Search,
   MoreVertical,
-  Shield,
-  ShieldOff,
-  Trash2,
-  Eye,
   UserCog,
+  Shield,
+  Ban,
+  CheckCircle,
   AlertCircle,
-  Mail,
-  Check,
-  X
+  Filter,
+  Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -44,9 +34,27 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -55,89 +63,113 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { adminService } from '@/lib/api';
-import { User } from '@/types';
-import { userRoles, formatRelativeDate } from '@/config/theme';
+import { adminService } from '@/lib/api/admin';
+import { User, PaginatedResponse } from '@/types';
+import { userRoles } from '@/config/theme';
 import { toast } from 'sonner';
+
+const roles = ['APPRENANT', 'CREATEUR', 'ENTREPRENEUR', 'HYBRIDE', 'COACH'];
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalElements, setTotalElements] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(20);
+  
+  // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [roleFilter, setRoleFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  
+  // Dialogs
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState<string>('');
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
 
-  const loadUsers = useCallback(async (reset = false) => {
+  const loadUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const currentPage = reset ? 0 : page;
-      const response = await adminService.getUsers(currentPage, 20, roleFilter !== 'all' ? roleFilter : undefined);
       
-      if (reset) {
-        setUsers(response.content);
-        setPage(0);
-      } else {
-        setUsers(prev => [...prev, ...response.content]);
-      }
-      setTotal(response.totalElements);
-      setHasMore(response.hasNext);
+      const data = await adminService.getUsers(currentPage, pageSize, {
+        role: roleFilter || undefined,
+        status: statusFilter || undefined,
+        search: searchQuery || undefined,
+      });
+      
+      setUsers(data.content);
+      setTotalElements(data.totalElements);
     } catch (err) {
       console.error('Erreur chargement utilisateurs:', err);
       setError('Impossible de charger les utilisateurs.');
     } finally {
       setIsLoading(false);
     }
-  }, [page, roleFilter]);
+  }, [currentPage, pageSize, roleFilter, statusFilter, searchQuery]);
 
   useEffect(() => {
-    loadUsers(true);
-  }, [roleFilter]);
+    loadUsers();
+  }, [loadUsers]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    loadUsers(true);
-  };
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage === 0) {
+        loadUsers();
+      } else {
+        setCurrentPage(0);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleChangeRole = async () => {
     if (!selectedUser || !newRole) return;
 
     try {
       await adminService.updateUserRole(selectedUser.id, newRole);
-      setUsers(prev => prev.map(u => 
-        u.id === selectedUser.id ? { ...u, role: newRole } : u
-      ));
-      toast.success('Rôle mis à jour');
+      toast.success(`Rôle de ${selectedUser.username} changé en ${newRole}`);
       setRoleDialogOpen(false);
       setSelectedUser(null);
+      setNewRole('');
+      loadUsers();
     } catch (err) {
-      toast.error('Erreur lors de la mise à jour');
+      toast.error('Erreur lors du changement de rôle');
     }
   };
 
-  const handleToggleActive = async (user: User) => {
+  const handleSuspendUser = async () => {
+    if (!selectedUser) return;
+
     try {
-      await adminService.toggleUserStatus(user.id);
-      setUsers(prev => prev.map(u => 
-        u.id === user.id ? { ...u, isActive: !u.isActive } : u
-      ));
-      toast.success(user.isActive ? 'Utilisateur désactivé' : 'Utilisateur activé');
+      if (selectedUser.enabled) {
+        await adminService.suspendUser(selectedUser.id);
+        toast.success(`${selectedUser.username} a été suspendu`);
+      } else {
+        await adminService.activateUser(selectedUser.id);
+        toast.success(`${selectedUser.username} a été réactivé`);
+      }
+      setSuspendDialogOpen(false);
+      setSelectedUser(null);
+      loadUsers();
     } catch (err) {
-      toast.error('Erreur');
+      toast.error('Erreur lors de l\'opération');
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'ADMIN': return 'destructive';
+      case 'COACH': return 'default';
+      case 'CREATEUR': return 'secondary';
+      default: return 'outline';
+    }
+  };
+
+  const totalPages = Math.ceil(totalElements / pageSize);
 
   if (error && users.length === 0) {
     return (
@@ -147,7 +179,7 @@ export default function AdminUsersPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button onClick={() => loadUsers(true)}>Réessayer</Button>
+        <Button onClick={loadUsers}>Réessayer</Button>
       </div>
     );
   }
@@ -155,189 +187,203 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Gestion des utilisateurs</h1>
-        <p className="text-muted-foreground">
-          {total} utilisateur{total > 1 ? 's' : ''} enregistré{total > 1 ? 's' : ''}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Gestion des utilisateurs</h1>
+          <p className="text-muted-foreground">
+            {totalElements} utilisateur{totalElements > 1 ? 's' : ''} au total
+          </p>
+        </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <form onSubmit={handleSearch} className="relative flex-1">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Rechercher par nom, email..."
+            placeholder="Rechercher un utilisateur..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
-        </form>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
+        </div>
+        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v === 'all' ? '' : v); setCurrentPage(0); }}>
           <SelectTrigger className="w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Rôle" />
+            <SelectValue placeholder="Tous les rôles" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les rôles</SelectItem>
-            {Object.entries(userRoles).map(([key, info]) => (
-              <SelectItem key={key} value={key}>{info.label}</SelectItem>
+            {roles.map(role => (
+              <SelectItem key={role} value={role}>{role}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setCurrentPage(0); }}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous</SelectItem>
+            <SelectItem value="ACTIVE">Actifs</SelectItem>
+            <SelectItem value="SUSPENDED">Suspendus</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* Table */}
-      {isLoading && users.length === 0 ? (
+      {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-16" />
           ))}
         </div>
       ) : (
-        <>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Utilisateur</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Rôle</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Inscrit le</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Utilisateur</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Rôle</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Inscription</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={user.profilePictureUrl} />
+                        <AvatarFallback>
+                          {user.username?.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{user.fullName || user.username}</p>
+                        <p className="text-sm text-muted-foreground">@{user.username}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                  <TableCell>
+                    <Badge variant={getRoleBadgeVariant(user.role)}>
+                      {userRoles[user.role as keyof typeof userRoles]?.label || user.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.enabled ? (
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Actif
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-red-600 border-red-600">
+                        <Ban className="h-3 w-3 mr-1" />
+                        Suspendu
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(user.createdAt).toLocaleDateString('fr-FR')}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewRole(user.role);
+                            setRoleDialogOpen(true);
+                          }}
+                        >
+                          <UserCog className="h-4 w-4 mr-2" />
+                          Changer le rôle
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setSuspendDialogOpen(true);
+                          }}
+                          className={user.enabled ? 'text-red-600' : 'text-green-600'}
+                        >
+                          {user.enabled ? (
+                            <>
+                              <Ban className="h-4 w-4 mr-2" />
+                              Suspendre
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Réactiver
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => {
-                  const roleInfo = userRoles[user.role as keyof typeof userRoles] || userRoles.APPRENANT;
-                  
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={user.profilePictureUrl || undefined} />
-                            <AvatarFallback style={{ backgroundColor: roleInfo.color + '20', color: roleInfo.color }}>
-                              {(user.fullName || user.username).charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{user.fullName || user.username}</p>
-                            <p className="text-sm text-muted-foreground">@{user.username}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          {user.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge style={{ backgroundColor: roleInfo.color, color: 'white' }}>
-                          {roleInfo.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {user.isActive !== false ? (
-                          <Badge variant="outline" className="border-green-500 text-green-500">
-                            <Check className="h-3 w-3 mr-1" />
-                            Actif
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-red-500 text-red-500">
-                            <X className="h-3 w-3 mr-1" />
-                            Inactif
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {user.createdAt ? formatRelativeDate(user.createdAt) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="ghost">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir le profil
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedUser(user);
-                              setNewRole(user.role);
-                              setRoleDialogOpen(true);
-                            }}>
-                              <UserCog className="h-4 w-4 mr-2" />
-                              Changer le rôle
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleActive(user)}>
-                              {user.isActive !== false ? (
-                                <>
-                                  <ShieldOff className="h-4 w-4 mr-2" />
-                                  Désactiver
-                                </>
-                              ) : (
-                                <>
-                                  <Shield className="h-4 w-4 mr-2" />
-                                  Activer
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Load more */}
-          {hasMore && (
-            <div className="text-center">
-              <Button 
-                variant="outline" 
-                onClick={() => { setPage(p => p + 1); loadUsers(); }}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Chargement...' : 'Charger plus'}
-              </Button>
-            </div>
-          )}
-
-          {filteredUsers.length === 0 && !isLoading && (
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-              <p className="text-muted-foreground">Aucun utilisateur trouvé</p>
-            </div>
-          )}
-        </>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
-      {/* Change Role Dialog */}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage + 1} sur {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Role Change Dialog */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Changer le rôle</DialogTitle>
             <DialogDescription>
-              Modifier le rôle de {selectedUser?.fullName || selectedUser?.username}
+              Modifier le rôle de {selectedUser?.username}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Select value={newRole} onValueChange={setNewRole}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Sélectionner un rôle" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(userRoles).map(([key, info]) => (
-                  <SelectItem key={key} value={key}>{info.label}</SelectItem>
+                {roles.map(role => (
+                  <SelectItem key={role} value={role}>
+                    {userRoles[role as keyof typeof userRoles]?.label || role}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -346,12 +392,38 @@ export default function AdminUsersPage() {
             <Button variant="outline" onClick={() => setRoleDialogOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={handleChangeRole}>
+            <Button onClick={handleChangeRole} disabled={!newRole || newRole === selectedUser?.role}>
               Confirmer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Suspend/Activate Dialog */}
+      <AlertDialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {selectedUser?.enabled ? 'Suspendre l\'utilisateur ?' : 'Réactiver l\'utilisateur ?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedUser?.enabled 
+                ? `${selectedUser?.username} ne pourra plus accéder à son compte.`
+                : `${selectedUser?.username} pourra à nouveau accéder à son compte.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleSuspendUser}
+              className={selectedUser?.enabled ? 'bg-destructive text-destructive-foreground' : ''}
+            >
+              {selectedUser?.enabled ? 'Suspendre' : 'Réactiver'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
