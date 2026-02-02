@@ -69,26 +69,36 @@ export default function FavoritesPage() {
   const handleRemove = async (contentId: number) => {
     try {
       await favoritesService.remove(contentId);
-      setFavorites(prev => prev.filter(f => f.content.id !== contentId));
-      setTotal(prev => prev - 1);
+      setFavorites(prev => prev.filter(f => f.content?.id !== contentId));
+      setTotal(prev => Math.max(0, prev - 1));
       toast.success('Retiré des favoris');
     } catch (err) {
       toast.error('Erreur lors de la suppression');
     }
   };
 
-  const filteredFavorites = favorites.filter(f =>
-    f.content.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filtrer les favoris valides (avec contenu) et appliquer la recherche
+  const filteredFavorites = favorites.filter(f => {
+    // Vérifier que le contenu existe
+    if (!f.content || !f.content.title) return false;
+    // Appliquer le filtre de recherche
+    if (searchQuery.trim()) {
+      return f.content.title.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+    return true;
+  });
 
   const sortedFavorites = [...filteredFavorites].sort((a, b) => {
+    // Vérifications de sécurité supplémentaires
+    if (!a.content || !b.content) return 0;
+    
     switch (sortBy) {
       case 'date-asc':
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       case 'title-asc':
-        return a.content.title.localeCompare(b.content.title);
+        return (a.content.title || '').localeCompare(b.content.title || '');
       case 'title-desc':
-        return b.content.title.localeCompare(a.content.title);
+        return (b.content.title || '').localeCompare(a.content.title || '');
       default: // date-desc
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
@@ -160,23 +170,28 @@ export default function FavoritesPage() {
       ) : sortedFavorites.length > 0 ? (
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sortedFavorites.map((fav, index) => (
-              <div 
-                key={fav.id}
-                className="relative group animate-fade-up"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <ContentCard content={fav.content} />
-                <Button
-                  size="icon"
-                  variant="destructive"
-                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleRemove(fav.content.id)}
+            {sortedFavorites.map((fav, index) => {
+              // Vérifier que le contenu existe
+              if (!fav.content) return null;
+              
+              return (
+                <div 
+                  key={fav.id}
+                  className="relative group animate-fade-up"
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+                  <ContentCard content={fav.content} />
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleRemove(fav.content!.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
 
           {/* Load more */}

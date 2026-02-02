@@ -59,8 +59,17 @@ export default function DashboardPage() {
         subscriptionsService.getMySubscription().catch(() => null),
       ]);
       
-      setFavorites(favsData.content.map((f: { content: ContentSummary }) => f.content));
-      setRecentPurchases(purchasesData.content.map((p: { content: ContentSummary }) => p.content));
+      // Filtrer les favoris et achats valides (avec contenu)
+      setFavorites(
+        favsData.content
+          .map((f: { content?: ContentSummary }) => f.content)
+          .filter((content): content is ContentSummary => content !== undefined && content !== null)
+      );
+      setRecentPurchases(
+        purchasesData.content
+          .map((p: { content?: ContentSummary }) => p.content)
+          .filter((content): content is ContentSummary => content !== undefined && content !== null)
+      );
       setNotifications(notifsData.content);
       setSubscription(subData);
       
@@ -231,9 +240,11 @@ export default function DashboardPage() {
           <CardContent>
             {recentPurchases.length > 0 ? (
               <div className="space-y-3">
-                {recentPurchases.map(content => (
-                  <ContentCard key={content.id} content={content} variant="compact" />
-                ))}
+                {recentPurchases
+                  .filter(content => content && content.id)
+                  .map(content => (
+                    <ContentCard key={content.id} content={content} variant="compact" />
+                  ))}
               </div>
             ) : (
               <div className="text-center py-8">
@@ -264,9 +275,11 @@ export default function DashboardPage() {
           <CardContent>
             {favorites.length > 0 ? (
               <div className="space-y-3">
-                {favorites.map(content => (
-                  <ContentCard key={content.id} content={content} variant="compact" />
-                ))}
+                {favorites
+                  .filter(content => content && content.id)
+                  .map(content => (
+                    <ContentCard key={content.id} content={content} variant="compact" />
+                  ))}
               </div>
             ) : (
               <div className="text-center py-8">
