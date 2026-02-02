@@ -20,9 +20,15 @@ export const subscriptionsService = {
     return response.data;
   },
   
-  // S'abonner
-  async subscribe(data: CreateSubscriptionRequest): Promise<Subscription> {
+  // S'abonner (avec objet)
+  async create(data: CreateSubscriptionRequest): Promise<Subscription> {
     const response = await apiClient.post<Subscription>(SUBSCRIPTIONS.BASE, data);
+    return response.data;
+  },
+  
+  // S'abonner (simplifié avec planId)
+  async subscribe(planId: number): Promise<Subscription> {
+    const response = await apiClient.post<Subscription>(`${SUBSCRIPTIONS.BASE}/${planId}`);
     return response.data;
   },
   
@@ -32,9 +38,15 @@ export const subscriptionsService = {
     return response.data;
   },
   
-  // Annuler abonnement
-  async cancel(id: number): Promise<Subscription> {
+  // Annuler abonnement (avec id)
+  async cancelById(id: number): Promise<Subscription> {
     const response = await apiClient.post<Subscription>(SUBSCRIPTIONS.CANCEL(id));
+    return response.data;
+  },
+  
+  // Annuler abonnement actuel
+  async cancel(): Promise<Subscription> {
+    const response = await apiClient.post<Subscription>(`${SUBSCRIPTIONS.CURRENT}/cancel`);
     return response.data;
   },
   
@@ -46,6 +58,11 @@ export const subscriptionsService = {
     } catch {
       return null;
     }
+  },
+  
+  // Alias pour getCurrent
+  async getMySubscription(): Promise<Subscription | null> {
+    return this.getCurrent();
   },
   
   // Historique

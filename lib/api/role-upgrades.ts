@@ -33,8 +33,10 @@ export const roleUpgradesService = {
   },
   
   // Toutes les demandes (Admin)
-  async getAll(page = 0, size = 20): Promise<PaginatedResponse<RoleUpgradeRequest>> {
-    const response = await apiClient.get<PaginatedResponse<RoleUpgradeRequest>>(ROLE_UPGRADES.BASE, { page, size });
+  async getAll(page = 0, size = 20, status?: string): Promise<PaginatedResponse<RoleUpgradeRequest>> {
+    const params: Record<string, string | number | undefined> = { page, size };
+    if (status) params.status = status;
+    const response = await apiClient.get<PaginatedResponse<RoleUpgradeRequest>>(ROLE_UPGRADES.BASE, params);
     return response.data;
   },
   

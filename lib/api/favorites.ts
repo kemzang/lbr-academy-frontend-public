@@ -42,6 +42,11 @@ export const favoritesService = {
     return response.data;
   },
   
+  // Alias pour getAll
+  async getMyFavorites(page = 0, size = 20): Promise<PaginatedResponse<Favorite>> {
+    return this.getAll(page, size);
+  },
+  
   // Favoris par collection
   async getByCollection(name: string, page = 0, size = 20): Promise<PaginatedResponse<Favorite>> {
     const response = await apiClient.get<PaginatedResponse<Favorite>>(FAVORITES.BY_COLLECTION(name), { page, size });

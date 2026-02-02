@@ -126,10 +126,10 @@ export const contentsService = {
   },
   
   // Mes contenus
-  async getMyContents(params?: ContentSearchParams): Promise<PaginatedResponse<ContentSummary>> {
-    const response = await apiClient.get<PaginatedResponse<ContentSummary>>(
+  async getMyContents(page = 0, size = 20): Promise<PaginatedResponse<Content>> {
+    const response = await apiClient.get<PaginatedResponse<Content>>(
       CONTENTS.MY_CONTENTS,
-      params as Record<string, string | number | boolean | undefined>
+      { page, size }
     );
     return response.data;
   },

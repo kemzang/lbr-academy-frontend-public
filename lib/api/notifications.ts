@@ -48,6 +48,11 @@ export const notificationsService = {
   async deleteRead(): Promise<void> {
     await apiClient.delete(NOTIFICATIONS.DELETE_READ);
   },
+  
+  // Supprimer une notification
+  async delete(id: number): Promise<void> {
+    await apiClient.delete(`${NOTIFICATIONS.BASE}/${id}`);
+  },
 };
 
 export default notificationsService;
