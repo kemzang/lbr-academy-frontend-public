@@ -69,7 +69,7 @@ export const adminService = {
     const params: Record<string, string | number | boolean | undefined> = { page, size };
     if (status) params.status = status;
     if (type) params.type = type;
-    const response = await apiClient.get<PaginatedResponse<Content>>('/api/admin/contents', params);
+    const response = await apiClient.get<PaginatedResponse<Content>>('/admin/contents', params);
     return response.data;
   },
   
