@@ -129,3 +129,36 @@ export const contentStatuses = {
 export type ContentType = keyof typeof contentTypes;
 export type UserRole = keyof typeof userRoles;
 export type ContentStatus = keyof typeof contentStatuses;
+
+// Utilitaire de formatage du prix
+export function formatPrice(price?: number): string {
+  if (price === undefined || price === null || price === 0) return 'Gratuit';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XAF',
+    minimumFractionDigits: 0,
+  }).format(price);
+}
+
+// Formater une date relative
+export function formatRelativeDate(date: string | Date): string {
+  const now = new Date();
+  const d = new Date(date);
+  const diff = now.getTime() - d.getTime();
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 7) {
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  } else if (days > 0) {
+    return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+  } else if (hours > 0) {
+    return `il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+  } else if (minutes > 0) {
+    return `il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
+  } else {
+    return 'à l\'instant';
+  }
+}

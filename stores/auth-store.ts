@@ -14,6 +14,7 @@ interface AuthState {
   
   // Actions
   setUser: (user: UserSummary | null) => void;
+  updateUser: (data: Partial<UserSummary>) => void;
   login: (emailOrUsername: string, password: string) => Promise<void>;
   register: (data: { username: string; email: string; password: string; fullName: string; phone?: string }) => Promise<void>;
   logout: () => void;
@@ -28,6 +29,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       
       setUser: (user) => set({ user, isAuthenticated: !!user }),
+      
+      updateUser: (data) => set((state) => ({
+        user: state.user ? { ...state.user, ...data } : null
+      })),
       
       login: async (emailOrUsername, password) => {
         const response = await authService.login({ emailOrUsername, password });

@@ -29,6 +29,11 @@ export const usersService = {
     return response.data;
   },
   
+  // Alias pour updateProfilePicture
+  async updateProfilePicture(file: File): Promise<UserProfile> {
+    return this.uploadProfilePicture(file);
+  },
+  
   // Profil public d'un utilisateur
   async getPublicProfile(userId: number): Promise<UserPublicProfile> {
     const response = await apiClient.get<UserPublicProfile>(USERS.PUBLIC_PROFILE(userId));

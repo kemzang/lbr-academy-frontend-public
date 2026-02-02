@@ -1,269 +1,330 @@
 // ============================================
-// Page Dashboard utilisateur
+// Dashboard utilisateur - Connecté à l'API
 // ============================================
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   BookOpen, 
   Heart, 
   ShoppingBag, 
-  Eye,
+  Bell, 
   TrendingUp,
-  Star,
   Clock,
-  ArrowRight,
-  Play
+  Star,
+  ChevronRight,
+  FileText,
+  AlertCircle,
+  Crown
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ContentCard } from '@/components/ui/content-card';
 import { useAuthStore } from '@/stores/auth-store';
-
-// Mock data
-const stats = [
-  { label: 'Contenus achetés', value: 12, icon: ShoppingBag, color: '#F59E0B' },
-  { label: 'Favoris', value: 24, icon: Heart, color: '#EF4444' },
-  { label: 'Contenus lus', value: 8, icon: BookOpen, color: '#10B981' },
-  { label: 'Heures d\'apprentissage', value: 45, icon: Clock, color: '#3B82F6' },
-];
-
-const recentPurchases = [
-  {
-    id: 1,
-    title: "L'Art de la Discipline",
-    author: "Coach Mbarga",
-    type: "BOOK",
-    progress: 65,
-    coverUrl: null,
-  },
-  {
-    id: 2,
-    title: "Entrepreneuriat en Afrique",
-    author: "Paul Entrepreneur",
-    type: "FORMATION",
-    progress: 30,
-    coverUrl: null,
-  },
-  {
-    id: 3,
-    title: "Méditations Stoïciennes",
-    author: "Coach Mbarga",
-    type: "AUDIO",
-    progress: 100,
-    coverUrl: null,
-  },
-];
-
-const recommendations = [
-  {
-    id: 4,
-    title: "Masterclass Investissement",
-    author: "Paul Entrepreneur",
-    type: "VIDEO",
-    price: 25000,
-    rating: 4.9,
-  },
-  {
-    id: 5,
-    title: "Collection Philosophie Africaine",
-    author: "Lecteur Royal",
-    type: "SERIES",
-    price: 10000,
-    rating: 4.8,
-  },
-];
+import { contentsService, favoritesService, purchasesService, notificationsService, subscriptionsService } from '@/lib/api';
+import { ContentSummary, Notification, UserSubscription } from '@/types';
+import { formatPrice, formatRelativeDate } from '@/config/theme';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  
-  const isCreator = ['CREATEUR', 'ENTREPRENEUR', 'HYBRIDE', 'COACH', 'ADMIN'].includes(user?.role || '');
+  const [stats, setStats] = useState({
+    favorites: 0,
+    purchases: 0,
+    unreadNotifications: 0,
+  });
+  const [recentPurchases, setRecentPurchases] = useState<ContentSummary[]>([]);
+  const [favorites, setFavorites] = useState<ContentSummary[]>([]);
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Charger en parallèle
+      const [favsData, purchasesData, notifsData, subData] = await Promise.all([
+        favoritesService.getMyFavorites(0, 4).catch(() => ({ content: [], totalElements: 0 })),
+        purchasesService.getMyPurchases(0, 4).catch(() => ({ content: [], totalElements: 0 })),
+        notificationsService.getAll(0, 5).catch(() => ({ content: [], unreadCount: 0 })),
+        subscriptionsService.getMySubscription().catch(() => null),
+      ]);
+      
+      setFavorites(favsData.content.map((f: { content: ContentSummary }) => f.content));
+      setRecentPurchases(purchasesData.content.map((p: { content: ContentSummary }) => p.content));
+      setNotifications(notifsData.content);
+      setSubscription(subData);
+      
+      setStats({
+        favorites: favsData.totalElements,
+        purchases: purchasesData.totalElements,
+        unreadNotifications: notifsData.unreadCount || 0,
+      });
+    } catch (err) {
+      console.error('Erreur chargement dashboard:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      {/* Welcome */}
+    <div className="space-y-8">
+      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold mb-2">
-          Bonjour, <span className="text-gradient-gold">{user?.username || 'Roi'}</span> 👑
+          Bienvenue, {user?.fullName || user?.username} 👋
         </h1>
         <p className="text-muted-foreground">
-          Bienvenue dans votre espace personnel. Continuez votre apprentissage.
+          Voici un aperçu de votre activité sur La Bibliothèque des Rois.
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <Card 
-            key={stat.label}
-            className="animate-fade-up"
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
+      {/* Subscription Status */}
+      {subscription ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center justify-between p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full gradient-gold flex items-center justify-center">
+                <Crown className="h-6 w-6 text-background" />
+              </div>
+              <div>
+                <p className="font-semibold">Abonnement {subscription.plan?.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Valide jusqu'au {new Date(subscription.endDate).toLocaleDateString('fr-FR')}
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" asChild>
+              <Link href="/subscriptions">Gérer</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center justify-between p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <Crown className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold">Aucun abonnement actif</p>
+                <p className="text-sm text-muted-foreground">
+                  Débloquez tous les contenus premium
+                </p>
+              </div>
+            </div>
+            <Button className="gradient-gold text-background" asChild>
+              <Link href="/pricing">S'abonner</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats Cards */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link href="/favorites">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div 
-                  className="h-12 w-12 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: stat.color + '20' }}
-                >
-                  <stat.icon className="h-6 w-6" style={{ color: stat.color }} />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Favoris</p>
+                  <p className="text-2xl font-bold">{stats.favorites}</p>
                 </div>
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <Heart className="h-6 w-6 text-red-500" />
+                </div>
               </div>
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
             </CardContent>
           </Card>
-        ))}
+        </Link>
+
+        <Link href="/purchases">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Achats</p>
+                  <p className="text-2xl font-bold">{stats.purchases}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <ShoppingBag className="h-6 w-6 text-green-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/notifications">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Notifications</p>
+                  <p className="text-2xl font-bold">{stats.unreadNotifications}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Bell className="h-6 w-6 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/explorer">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Explorer</p>
+                  <p className="text-2xl font-bold">500+</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <BookOpen className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Recent purchases / In progress */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl">Continuer l&apos;apprentissage</CardTitle>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/purchases">
-                  Voir tout
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {recentPurchases.map((item) => (
-                <div 
-                  key={item.id}
-                  className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-16 w-12 rounded-lg bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="h-6 w-6 text-primary/50" />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground">{item.author}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Progress value={item.progress} className="h-1.5 flex-1" />
-                      <span className="text-xs text-muted-foreground">{item.progress}%</span>
-                    </div>
-                  </div>
-                  
-                  <Button size="sm" variant="outline">
-                    <Play className="h-4 w-4 mr-1" />
-                    {item.progress === 100 ? 'Relire' : 'Continuer'}
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Creator stats (if creator) */}
-          {isCreator && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-xl">Mes performances</CardTitle>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/my-contents">
-                    Gérer mes contenus
-                    <ArrowRight className="h-4 w-4 ml-1" />
-                  </Link>
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Recent Purchases */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Achats récents</CardTitle>
+              <CardDescription>Vos derniers contenus achetés</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/purchases">
+                Voir tout
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentPurchases.length > 0 ? (
+              <div className="space-y-3">
+                {recentPurchases.map(content => (
+                  <ContentCard key={content.id} content={content} variant="compact" />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <ShoppingBag className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                <p className="text-muted-foreground">Aucun achat pour le moment</p>
+                <Button variant="link" asChild>
+                  <Link href="/explorer">Explorer les contenus</Link>
                 </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 rounded-xl bg-muted/30">
-                    <p className="text-2xl font-bold text-gradient-gold">12</p>
-                    <p className="text-sm text-muted-foreground">Contenus publiés</p>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-muted/30">
-                    <p className="text-2xl font-bold">3,450</p>
-                    <p className="text-sm text-muted-foreground">Vues totales</p>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-muted/30">
-                    <p className="text-2xl font-bold text-green-500">125K XAF</p>
-                    <p className="text-sm text-muted-foreground">Revenus ce mois</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Recommendations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Recommandé pour vous</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {recommendations.map((item) => (
-                <Link 
-                  key={item.id}
-                  href={`/contents/${item.id}`}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-12 w-10 rounded bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="h-5 w-5 text-primary/50" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate">{item.title}</h4>
-                    <p className="text-xs text-muted-foreground">{item.author}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-xs">{item.type}</Badge>
-                      <span className="text-xs flex items-center gap-1">
-                        <Star className="h-3 w-3 text-primary fill-primary" />
-                        {item.rating}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-primary">
-                    {item.price.toLocaleString()} XAF
-                  </span>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Activité récente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <ShoppingBag className="h-4 w-4 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm">Vous avez acheté <strong>L&apos;Art de la Discipline</strong></p>
-                  <p className="text-xs text-muted-foreground">Il y a 2 jours</p>
-                </div>
+        {/* Favorites */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Vos favoris</CardTitle>
+              <CardDescription>Contenus sauvegardés pour plus tard</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/favorites">
+                Voir tout
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {favorites.length > 0 ? (
+              <div className="space-y-3">
+                {favorites.map(content => (
+                  <ContentCard key={content.id} content={content} variant="compact" />
+                ))}
               </div>
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-red-500/20 flex items-center justify-center">
-                  <Heart className="h-4 w-4 text-red-500" />
-                </div>
-                <div>
-                  <p className="text-sm">Vous avez ajouté <strong>Masterclass Investissement</strong> aux favoris</p>
-                  <p className="text-xs text-muted-foreground">Il y a 3 jours</p>
-                </div>
+            ) : (
+              <div className="text-center py-8">
+                <Heart className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                <p className="text-muted-foreground">Aucun favori pour le moment</p>
+                <Button variant="link" asChild>
+                  <Link href="/explorer">Découvrir les contenus</Link>
+                </Button>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <Eye className="h-4 w-4 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm">Vous avez terminé <strong>Méditations Stoïciennes</strong></p>
-                  <p className="text-xs text-muted-foreground">Il y a 5 jours</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Recent Notifications */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Notifications récentes</CardTitle>
+            <CardDescription>Restez informé des dernières actualités</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/notifications">
+              Voir tout
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {notifications.length > 0 ? (
+            <div className="space-y-3">
+              {notifications.slice(0, 5).map(notif => (
+                <div 
+                  key={notif.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
+                    !notif.isRead ? 'bg-primary/5' : 'hover:bg-muted'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full mt-2 ${
+                    !notif.isRead ? 'bg-primary' : 'bg-muted'
+                  }`} />
+                  <div className="flex-1">
+                    <p className={!notif.isRead ? 'font-medium' : ''}>{notif.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatRelativeDate(notif.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Bell className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+              <p className="text-muted-foreground">Aucune notification</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

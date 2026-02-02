@@ -1,7 +1,10 @@
 // ============================================
-// Page d'accueil - La Bibliothèque des Rois
+// Page d'accueil - Connectée à l'API
 // ============================================
 
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Crown, 
@@ -13,76 +16,17 @@ import {
   Star,
   Users,
   TrendingUp,
-  Zap
+  Zap,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeader } from '@/components/ui/section-header';
-
-// Mock data pour la démo
-const featuredContents = [
-  {
-    id: 1,
-    title: "L'Art de la Discipline Personnelle",
-    slug: "art-discipline-personnelle",
-    summary: "Découvrez les secrets des grands leaders pour développer une discipline de fer.",
-    type: "BOOK" as const,
-    coverUrl: "/api/placeholder/300/400",
-    isFree: false,
-    price: 5000,
-    currency: "XAF",
-    status: "APPROVED" as const,
-    viewCount: 1250,
-    averageRating: 4.8,
-    ratingCount: 89,
-    author: { id: 1, username: "coach_mbarga", email: "", role: "COACH" as const, roleDisplayName: "Coach Certifié" },
-    createdAt: "2026-01-15",
-    isFeatured: true,
-  },
-  {
-    id: 2,
-    title: "Entrepreneuriat en Afrique: Guide Complet",
-    slug: "entrepreneuriat-afrique-guide",
-    summary: "Un guide pratique pour lancer et développer votre business en Afrique.",
-    type: "FORMATION" as const,
-    coverUrl: "/api/placeholder/300/400",
-    isFree: false,
-    price: 15000,
-    currency: "XAF",
-    status: "APPROVED" as const,
-    viewCount: 890,
-    averageRating: 4.9,
-    ratingCount: 56,
-    author: { id: 2, username: "entrepreneur_paul", email: "", role: "ENTREPRENEUR" as const, roleDisplayName: "Entrepreneur" },
-    createdAt: "2026-01-20",
-    isFeatured: true,
-  },
-  {
-    id: 3,
-    title: "Les 48 Lois du Pouvoir - Résumé",
-    slug: "48-lois-pouvoir-resume",
-    summary: "Résumé et analyse des 48 lois du pouvoir de Robert Greene.",
-    type: "ARTICLE" as const,
-    coverUrl: "/api/placeholder/300/400",
-    isFree: true,
-    currency: "XAF",
-    status: "APPROVED" as const,
-    viewCount: 3400,
-    averageRating: 4.7,
-    ratingCount: 234,
-    author: { id: 3, username: "lecteur_royal", email: "", role: "CREATEUR" as const, roleDisplayName: "Créateur" },
-    createdAt: "2026-01-22",
-    isFeatured: true,
-  },
-];
-
-const categories = [
-  { name: 'Développement Personnel', icon: Sparkles, count: 145, color: '#F59E0B' },
-  { name: 'Business & Entrepreneuriat', icon: TrendingUp, count: 89, color: '#10B981' },
-  { name: 'Leadership', icon: Crown, count: 67, color: '#3B82F6' },
-  { name: 'Finance & Investissement', icon: Zap, count: 54, color: '#8B5CF6' },
-];
+import { ContentCard } from '@/components/ui/content-card';
+import { contentsService, categoriesService } from '@/lib/api';
+import { ContentSummary, Category } from '@/types';
 
 const stats = [
   { label: 'Contenus', value: '500+', icon: BookOpen },
@@ -92,6 +36,39 @@ const stats = [
 ];
 
 export default function HomePage() {
+  const [featuredContents, setFeaturedContents] = useState<ContentSummary[]>([]);
+  const [latestContents, setLatestContents] = useState<ContentSummary[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Charger en parallèle
+      const [featured, latest, cats] = await Promise.all([
+        contentsService.getFeatured(6).catch(() => []),
+        contentsService.getLatest(6).catch(() => []),
+        categoriesService.getAll().catch(() => []),
+      ]);
+      
+      setFeaturedContents(featured);
+      setLatestContents(latest);
+      setCategories(cats.slice(0, 4)); // Prendre les 4 premières
+    } catch (err) {
+      console.error('Erreur chargement page accueil:', err);
+      setError('Certaines données n\'ont pas pu être chargées.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Hero Section */}
@@ -172,71 +149,30 @@ export default function HomePage() {
             href="/explorer?featured=true"
           />
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredContents.map((content, index) => (
-              <Card 
-                key={content.id}
-                className="group overflow-hidden border-border/50 bg-card/50 hover:bg-card hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 transition-all duration-500 animate-fade-up"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                {/* Cover */}
-                <div className="relative aspect-[4/3] bg-gradient-to-br from-primary/20 to-secondary/20 overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <BookOpen className="h-16 w-16 text-primary/30" />
-                  </div>
-                  
-                  {/* Type badge */}
-                  <Badge className="absolute top-3 left-3 bg-background/80 backdrop-blur-sm">
-                    {content.type === 'BOOK' && <BookOpen className="h-3 w-3 mr-1" />}
-                    {content.type === 'FORMATION' && <GraduationCap className="h-3 w-3 mr-1" />}
-                    {content.type === 'ARTICLE' && <Sparkles className="h-3 w-3 mr-1" />}
-                    {content.type}
-                  </Badge>
-                  
-                  {content.isFeatured && (
-                    <Badge className="absolute top-3 right-3 gradient-gold text-background">
-                      <Star className="h-3 w-3 mr-1 fill-current" />
-                      Vedette
-                    </Badge>
-                  )}
+          {isLoading ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-96" />
+              ))}
+            </div>
+          ) : featuredContents.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredContents.map((content, index) => (
+                <div 
+                  key={content.id}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <ContentCard content={content} />
                 </div>
-                
-                <CardContent className="p-5">
-                  <Link href={`/contents/${content.slug}`}>
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      {content.title}
-                    </h3>
-                  </Link>
-                  
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                    {content.summary}
-                  </p>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                        {content.author.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{content.author.username}</p>
-                        <p className="text-xs text-muted-foreground">{content.author.roleDisplayName}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <p className={content.isFree ? 'text-green-500 font-bold' : 'text-primary font-bold'}>
-                        {content.isFree ? 'Gratuit' : `${content.price?.toLocaleString()} ${content.currency}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                        <Star className="h-3 w-3 text-primary fill-primary" />
-                        {content.averageRating}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <BookOpen className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+              <p className="text-muted-foreground">Les contenus en vedette arrivent bientôt</p>
+            </div>
+          )}
           
           <div className="text-center mt-10">
             <Button size="lg" variant="outline" className="border-primary/30" asChild>
@@ -249,47 +185,71 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <SectionHeader 
-            title="Explorer par Catégorie"
-            subtitle="Trouvez le contenu qui correspond à vos centres d'intérêt"
-            href="/categories"
-            align="center"
-          />
-          
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-            {categories.map((category, index) => (
-              <Link 
-                key={category.name}
-                href={`/categories/${category.name.toLowerCase().replace(/ /g, '-')}`}
-                className="group"
-              >
-                <Card 
-                  className="h-full border-border/50 bg-card/30 hover:bg-card hover:border-primary/30 transition-all duration-300 animate-fade-up"
+      {/* Latest Contents */}
+      {latestContents.length > 0 && (
+        <section className="py-20">
+          <div className="container mx-auto px-4">
+            <SectionHeader 
+              title="Dernières Publications"
+              subtitle="Les contenus les plus récents de nos créateurs"
+              href="/explorer?sortBy=date&sortDir=desc"
+            />
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {latestContents.map((content, index) => (
+                <div 
+                  key={content.id}
+                  className="animate-fade-up"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <CardContent className="p-6 flex flex-col items-center text-center">
-                    <div 
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"
-                      style={{ backgroundColor: category.color + '20' }}
-                    >
-                      <category.icon className="h-8 w-8" style={{ color: category.color }} />
-                    </div>
-                    <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
-                      {category.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {category.count} contenus
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                  <ContentCard content={content} />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* Categories */}
+      {categories.length > 0 && (
+        <section className="py-20 bg-card/30">
+          <div className="container mx-auto px-4">
+            <SectionHeader 
+              title="Explorer par Catégorie"
+              subtitle="Trouvez le contenu qui correspond à vos centres d'intérêt"
+              href="/categories"
+              align="center"
+            />
+            
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+              {categories.map((category, index) => (
+                <Link 
+                  key={category.id}
+                  href={`/explorer?categoryId=${category.id}`}
+                  className="group"
+                >
+                  <Card 
+                    className="h-full border-border/50 bg-card/30 hover:bg-card hover:border-primary/30 transition-all duration-300 animate-fade-up"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 bg-primary/20">
+                        <Sparkles className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
+                        {category.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {category.contentCount || 0} contenus
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-20 relative overflow-hidden">
@@ -313,8 +273,8 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button size="lg" variant="ghost" asChild>
-                <Link href="/about">
-                  En savoir plus
+                <Link href="/pricing">
+                  Voir les abonnements
                 </Link>
               </Button>
             </div>

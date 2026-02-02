@@ -71,9 +71,19 @@ export interface UserSummary {
   id: number;
   username: string;
   email: string;
+  fullName?: string;
+  bio?: string;
+  phone?: string;
+  address?: string;
   role: UserRole;
   roleDisplayName: string;
   profilePictureUrl?: string;
+  followersCount?: number;
+  followingCount?: number;
+  contentsCount?: number;
+  isVerified?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface User extends UserSummary {
@@ -128,16 +138,31 @@ export interface ContentSummary {
   currency: string;
   status: ContentStatus;
   viewCount: number;
+  viewsCount?: number; // Alias pour compatibilité
   averageRating: number;
   ratingCount: number;
-  author: UserSummary;
+  ratingsCount?: number; // Alias pour compatibilité
+  readTime?: number;
+  author: ContentAuthor;
   category?: CategorySummary;
+  categories?: CategorySummary[];
   createdAt: string;
   isFeatured: boolean;
+  isFavorite?: boolean;
+  isPurchased?: boolean;
+}
+
+export interface ContentAuthor {
+  id: number;
+  username: string;
+  fullName?: string;
+  profilePictureUrl?: string;
+  role?: string;
 }
 
 export interface Content extends ContentSummary {
   description: string;
+  body?: string;
   freePreview?: string;
   fileUrl?: string;
   tags?: string;
@@ -146,8 +171,6 @@ export interface Content extends ContentSummary {
   duration?: number;
   publishedAt?: string;
   updatedAt: string;
-  isPurchased?: boolean;
-  isFavorite?: boolean;
   userRating?: number;
 }
 
@@ -221,7 +244,9 @@ export interface Purchase {
   status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
   paymentMethod: string;
   paymentReference: string;
+  purchaseDate: string;
   purchasedAt: string;
+  invoiceUrl?: string;
 }
 
 export interface CreatePurchaseRequest {
@@ -253,6 +278,9 @@ export interface Subscription {
   paymentMethod: string;
 }
 
+// Alias pour UserSubscription
+export type UserSubscription = Subscription;
+
 export interface CreateSubscriptionRequest {
   planId: number;
   paymentMethod: string;
@@ -264,6 +292,7 @@ export interface CreateSubscriptionRequest {
 export interface Comment {
   id: number;
   text: string;
+  body: string;
   user: UserSummary;
   contentId: number;
   parentId?: number;
@@ -334,9 +363,11 @@ export interface RoleUpgradeRequest {
   bio?: string;
   portfolioUrl?: string;
   linkedinUrl?: string;
+  documentUrl?: string;
   specialization?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   adminNote?: string;
+  rejectReason?: string;
   createdAt: string;
   processedAt?: string;
 }

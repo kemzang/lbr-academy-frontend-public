@@ -1,10 +1,10 @@
 // ============================================
-// Page Explorer - Recherche et liste des contenus
+// Page Explorer - Connectée à l'API
 // ============================================
 
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { 
   Search, 
@@ -17,11 +17,13 @@ import {
   Library,
   Headphones,
   Play,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -44,6 +46,7 @@ import { ContentCard } from '@/components/ui/content-card';
 import { cn } from '@/lib/utils';
 import { ContentSummary } from '@/types';
 import { contentTypes } from '@/config/theme';
+import { contentsService } from '@/lib/api';
 
 const typeFilters = [
   { value: 'BOOK', label: 'Livres', icon: BookOpen },
@@ -63,111 +66,6 @@ const sortOptions = [
   { value: 'price-desc', label: 'Prix décroissant' },
 ];
 
-// Mock data
-const mockContents: ContentSummary[] = [
-  {
-    id: 1,
-    title: "L'Art de la Discipline Personnelle",
-    slug: "art-discipline-personnelle",
-    summary: "Découvrez les secrets des grands leaders pour développer une discipline de fer.",
-    type: "BOOK",
-    isFree: false,
-    price: 5000,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 1250,
-    averageRating: 4.8,
-    ratingCount: 89,
-    author: { id: 1, username: "coach_mbarga", email: "", role: "COACH", roleDisplayName: "Coach Certifié" },
-    createdAt: "2026-01-15",
-    isFeatured: true,
-  },
-  {
-    id: 2,
-    title: "Entrepreneuriat en Afrique: Guide Complet",
-    slug: "entrepreneuriat-afrique-guide",
-    summary: "Un guide pratique pour lancer et développer votre business en Afrique.",
-    type: "FORMATION",
-    isFree: false,
-    price: 15000,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 890,
-    averageRating: 4.9,
-    ratingCount: 56,
-    author: { id: 2, username: "entrepreneur_paul", email: "", role: "ENTREPRENEUR", roleDisplayName: "Entrepreneur" },
-    createdAt: "2026-01-20",
-    isFeatured: true,
-  },
-  {
-    id: 3,
-    title: "Les 48 Lois du Pouvoir - Résumé",
-    slug: "48-lois-pouvoir-resume",
-    summary: "Résumé et analyse des 48 lois du pouvoir de Robert Greene.",
-    type: "ARTICLE",
-    isFree: true,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 3400,
-    averageRating: 4.7,
-    ratingCount: 234,
-    author: { id: 3, username: "lecteur_royal", email: "", role: "CREATEUR", roleDisplayName: "Créateur" },
-    createdAt: "2026-01-22",
-    isFeatured: false,
-  },
-  {
-    id: 4,
-    title: "Méditations Stoïciennes",
-    slug: "meditations-stoiciennes",
-    summary: "Collection audio de méditations inspirées par Marc Aurèle et les stoïciens.",
-    type: "AUDIO",
-    isFree: false,
-    price: 3000,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 567,
-    averageRating: 4.6,
-    ratingCount: 43,
-    author: { id: 1, username: "coach_mbarga", email: "", role: "COACH", roleDisplayName: "Coach Certifié" },
-    createdAt: "2026-01-25",
-    isFeatured: false,
-  },
-  {
-    id: 5,
-    title: "Masterclass: Investissement Immobilier",
-    slug: "masterclass-investissement-immobilier",
-    summary: "Apprenez à investir dans l'immobilier au Cameroun et en Afrique.",
-    type: "VIDEO",
-    isFree: false,
-    price: 25000,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 234,
-    averageRating: 4.9,
-    ratingCount: 28,
-    author: { id: 2, username: "entrepreneur_paul", email: "", role: "ENTREPRENEUR", roleDisplayName: "Entrepreneur" },
-    createdAt: "2026-01-28",
-    isFeatured: true,
-  },
-  {
-    id: 6,
-    title: "Collection: Philosophie Africaine",
-    slug: "collection-philosophie-africaine",
-    summary: "Une série de textes fondamentaux de la pensée africaine.",
-    type: "SERIES",
-    isFree: false,
-    price: 10000,
-    currency: "XAF",
-    status: "APPROVED",
-    viewCount: 456,
-    averageRating: 4.8,
-    ratingCount: 67,
-    author: { id: 3, username: "lecteur_royal", email: "", role: "CREATEUR", roleDisplayName: "Créateur" },
-    createdAt: "2026-01-30",
-    isFeatured: false,
-  },
-];
-
 function ExplorerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -175,60 +73,56 @@ function ExplorerContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [categoryId, setCategoryId] = useState<number | null>(
+    searchParams.get('categoryId') ? Number(searchParams.get('categoryId')) : null
+  );
   const [isFreeOnly, setIsFreeOnly] = useState(false);
   const [sortBy, setSortBy] = useState('date-desc');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [contents, setContents] = useState<ContentSummary[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    // Simulate loading
-    setIsLoading(true);
-    setTimeout(() => {
-      let filtered = [...mockContents];
+  const loadContents = useCallback(async (reset = false) => {
+    try {
+      setIsLoading(true);
+      setError(null);
       
-      // Filter by search
-      if (searchQuery) {
-        filtered = filtered.filter(c => 
-          c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.summary?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
+      const [sortField, sortDir] = sortBy.split('-');
+      const currentPage = reset ? 0 : page;
       
-      // Filter by type
-      if (selectedTypes.length > 0) {
-        filtered = filtered.filter(c => selectedTypes.includes(c.type));
-      }
-      
-      // Filter by free
-      if (isFreeOnly) {
-        filtered = filtered.filter(c => c.isFree);
-      }
-      
-      // Sort
-      const [field, direction] = sortBy.split('-');
-      filtered.sort((a, b) => {
-        let comparison = 0;
-        switch (field) {
-          case 'date':
-            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-            break;
-          case 'rating':
-            comparison = a.averageRating - b.averageRating;
-            break;
-          case 'views':
-            comparison = a.viewCount - b.viewCount;
-            break;
-          case 'price':
-            comparison = (a.price || 0) - (b.price || 0);
-            break;
-        }
-        return direction === 'desc' ? -comparison : comparison;
+      const response = await contentsService.search({
+        query: searchQuery || undefined,
+        type: selectedTypes.length === 1 ? selectedTypes[0] as any : undefined,
+        categoryId: categoryId || undefined,
+        isFree: isFreeOnly || undefined,
+        page: currentPage,
+        size: 12,
+        sortBy: sortField as any,
+        sortDir: sortDir as any,
       });
       
-      setContents(filtered);
+      if (reset) {
+        setContents(response.content);
+        setPage(0);
+      } else {
+        setContents(prev => [...prev, ...response.content]);
+      }
+      setTotalElements(response.totalElements);
+      setHasMore(response.hasNext);
+    } catch (err: unknown) {
+      console.error('Erreur chargement contenus:', err);
+      setError('Impossible de charger les contenus.');
+    } finally {
       setIsLoading(false);
-    }, 500);
-  }, [searchQuery, selectedTypes, isFreeOnly, sortBy]);
+    }
+  }, [searchQuery, selectedTypes, categoryId, isFreeOnly, sortBy, page]);
+
+  useEffect(() => {
+    loadContents(true);
+  }, [searchQuery, selectedTypes, categoryId, isFreeOnly, sortBy]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,9 +148,11 @@ function ExplorerContent() {
     setIsFreeOnly(false);
     setSortBy('date-desc');
     setSearchQuery('');
+    setCategoryId(null);
+    router.push('/explorer');
   };
 
-  const hasFilters = selectedTypes.length > 0 || isFreeOnly || searchQuery;
+  const hasFilters = selectedTypes.length > 0 || isFreeOnly || searchQuery || categoryId;
 
   return (
     <div className="min-h-screen py-8">
@@ -268,6 +164,14 @@ function ExplorerContent() {
             Découvrez notre collection de contenus de qualité
           </p>
         </div>
+
+        {/* Error */}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Search & Filters Bar */}
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
@@ -330,7 +234,6 @@ function ExplorerContent() {
                   <SheetTitle>Filtres</SheetTitle>
                 </SheetHeader>
                 <div className="mt-6 space-y-6">
-                  {/* Type filters */}
                   <div>
                     <h3 className="font-medium mb-3">Type de contenu</h3>
                     <div className="space-y-2">
@@ -352,7 +255,6 @@ function ExplorerContent() {
                   
                   <Separator />
                   
-                  {/* Price filter */}
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="mobile-free"
@@ -463,10 +365,10 @@ function ExplorerContent() {
 
             {/* Results count */}
             <p className="text-sm text-muted-foreground mb-6">
-              {contents.length} résultat{contents.length > 1 ? 's' : ''}
+              {totalElements} résultat{totalElements > 1 ? 's' : ''}
             </p>
 
-            {isLoading ? (
+            {isLoading && contents.length === 0 ? (
               <div className={cn(
                 'grid gap-6',
                 viewMode === 'grid' 
@@ -485,25 +387,40 @@ function ExplorerContent() {
                 ))}
               </div>
             ) : contents.length > 0 ? (
-              <div className={cn(
-                'grid gap-6',
-                viewMode === 'grid' 
-                  ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
-                  : 'grid-cols-1'
-              )}>
-                {contents.map((content, index) => (
-                  <div 
-                    key={content.id}
-                    className="animate-fade-up"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <ContentCard 
-                      content={content} 
-                      variant={viewMode === 'list' ? 'horizontal' : 'default'} 
-                    />
+              <>
+                <div className={cn(
+                  'grid gap-6',
+                  viewMode === 'grid' 
+                    ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+                    : 'grid-cols-1'
+                )}>
+                  {contents.map((content, index) => (
+                    <div 
+                      key={content.id}
+                      className="animate-fade-up"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <ContentCard 
+                        content={content} 
+                        variant={viewMode === 'list' ? 'horizontal' : 'default'} 
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Load more */}
+                {hasMore && (
+                  <div className="text-center mt-8">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => { setPage(p => p + 1); loadContents(); }}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Chargement...' : 'Voir plus'}
+                    </Button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-16">
                 <BookOpen className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />

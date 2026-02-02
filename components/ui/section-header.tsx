@@ -1,5 +1,5 @@
 // ============================================
-// En-tête de section réutilisable
+// Composant SectionHeader - En-tête de section réutilisable
 // ============================================
 
 import Link from 'next/link';
@@ -11,46 +11,46 @@ interface SectionHeaderProps {
   title: string;
   subtitle?: string;
   href?: string;
-  linkLabel?: string;
-  className?: string;
+  linkText?: string;
   align?: 'left' | 'center';
+  className?: string;
 }
 
-export function SectionHeader({ 
-  title, 
-  subtitle, 
-  href, 
-  linkLabel = 'Voir tout',
+export function SectionHeader({
+  title,
+  subtitle,
+  href,
+  linkText = 'Voir tout',
+  align = 'left',
   className,
-  align = 'left'
 }: SectionHeaderProps) {
   return (
-    <div className={cn(
-      'flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8',
-      align === 'center' && 'sm:flex-col sm:items-center text-center',
-      className
-    )}>
+    <div 
+      className={cn(
+        'flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8',
+        align === 'center' && 'items-center text-center md:flex-col',
+        className
+      )}
+    >
       <div>
-        <h2 className="text-2xl md:text-3xl font-bold mb-1">
+        <h2 className="text-2xl md:text-3xl font-bold mb-2">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground max-w-xl">
             {subtitle}
           </p>
         )}
       </div>
       
       {href && (
-        <Button variant="ghost" asChild className="group self-start sm:self-auto">
-          <Link href={href} className="flex items-center gap-2">
-            {linkLabel}
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        <Button variant="ghost" className="group" asChild>
+          <Link href={href}>
+            {linkText}
+            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </Link>
         </Button>
       )}
     </div>
   );
 }
-
-export default SectionHeader;

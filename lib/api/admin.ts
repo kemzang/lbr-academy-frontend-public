@@ -7,6 +7,7 @@ import { apiClient } from './client';
 import { 
   AdminDashboard, 
   User, 
+  Content,
   ContentSummary, 
   PaginatedResponse,
   AdminUserSearchParams 
@@ -16,18 +17,38 @@ import { UserRole } from '@/config/theme';
 const { ADMIN } = API_CONFIG.ENDPOINTS;
 
 export const adminService = {
-  // Dashboard
-  async getDashboard(): Promise<AdminDashboard> {
+  // Dashboard stats
+  async getStats(): Promise<{
+    totalUsers: number;
+    totalContents: number;
+    totalPurchases: number;
+    totalRevenue: number;
+    pendingRoleRequests: number;
+    pendingContents: number;
+    newUsersThisMonth: number;
+    newContentsThisMonth: number;
+  }> {
     const response = await apiClient.get<AdminDashboard>(ADMIN.DASHBOARD);
     return response.data;
   },
   
   // Lister les utilisateurs
-  async getUsers(params?: AdminUserSearchParams): Promise<PaginatedResponse<User>> {
-    const response = await apiClient.get<PaginatedResponse<User>>(
-      ADMIN.USERS,
-      params as Record<string, string | number | boolean | undefined>
-    );
+  async getUsers(page = 0, size = 20, role?: string): Promise<PaginatedResponse<User>> {
+    const params: Record<string, string | number | boolean | undefined> = { page, size };
+    if (role) params.role = role;
+    const response = await apiClient.get<PaginatedResponse<User>>(ADMIN.USERS, params);
+    return response.data;
+  },
+  
+  // Changer le rôle d'un utilisateur
+  async updateUserRole(id: number, role: string): Promise<User> {
+    const response = await apiClient.patch<User>(ADMIN.CHANGE_ROLE(id), { role });
+    return response.data;
+  },
+  
+  // Activer/désactiver un utilisateur
+  async toggleUserStatus(id: number): Promise<User> {
+    const response = await apiClient.patch<User>(`${ADMIN.USERS}/${id}/toggle-status`);
     return response.data;
   },
   
@@ -43,9 +64,12 @@ export const adminService = {
     return response.data;
   },
   
-  // Changer le rôle d'un utilisateur
-  async changeUserRole(id: number, role: UserRole): Promise<User> {
-    const response = await apiClient.patch<User>(ADMIN.CHANGE_ROLE(id), { role });
+  // Lister les contenus (admin)
+  async getContents(page = 0, size = 20, status?: string, type?: string): Promise<PaginatedResponse<Content>> {
+    const params: Record<string, string | number | boolean | undefined> = { page, size };
+    if (status) params.status = status;
+    if (type) params.type = type;
+    const response = await apiClient.get<PaginatedResponse<Content>>('/api/admin/contents', params);
     return response.data;
   },
   

@@ -1,258 +1,319 @@
 // ============================================
-// Dashboard Admin
+// Dashboard Admin - Connecté à l'API
 // ============================================
 
 'use client';
 
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Users, 
   BookOpen, 
-  DollarSign, 
+  ShoppingBag, 
+  Crown,
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
-  UserPlus,
-  FileCheck,
-  Clock,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
+  UserCheck,
+  FileText,
+  DollarSign
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { adminService } from '@/lib/api';
 
-// Mock data
-const stats = [
-  { 
-    label: 'Utilisateurs', 
-    value: '1,547', 
-    change: '+12%', 
-    trend: 'up',
-    icon: Users, 
-    color: '#3B82F6' 
-  },
-  { 
-    label: 'Contenus publiés', 
-    value: '234', 
-    change: '+8%', 
-    trend: 'up',
-    icon: BookOpen, 
-    color: '#10B981' 
-  },
-  { 
-    label: 'Revenus (mois)', 
-    value: '2.5M XAF', 
-    change: '+23%', 
-    trend: 'up',
-    icon: DollarSign, 
-    color: '#F59E0B' 
-  },
-  { 
-    label: 'Abonnements actifs', 
-    value: '328', 
-    change: '-3%', 
-    trend: 'down',
-    icon: TrendingUp, 
-    color: '#8B5CF6' 
-  },
-];
-
-const pendingActions = [
-  { type: 'content', label: 'Contenus en attente', count: 15, href: '/admin/contents?status=pending' },
-  { type: 'role', label: 'Demandes de rôle', count: 8, href: '/admin/role-requests' },
-  { type: 'report', label: 'Signalements', count: 3, href: '/admin/reports' },
-];
-
-const recentUsers = [
-  { id: 1, username: 'marie_kouam', email: 'marie@example.com', role: 'APPRENANT', createdAt: 'Il y a 2h' },
-  { id: 2, username: 'paul_ngono', email: 'paul@example.com', role: 'CREATEUR', createdAt: 'Il y a 5h' },
-  { id: 3, username: 'jules_entrepreneur', email: 'jules@example.com', role: 'ENTREPRENEUR', createdAt: 'Il y a 1j' },
-];
-
-const recentContents = [
-  { id: 1, title: 'Nouveau guide marketing', author: 'coach_mbarga', status: 'PENDING_REVIEW', type: 'BOOK' },
-  { id: 2, title: 'Formation investissement', author: 'entrepreneur_paul', status: 'PENDING_REVIEW', type: 'FORMATION' },
-  { id: 3, title: 'Article leadership', author: 'lecteur_royal', status: 'APPROVED', type: 'ARTICLE' },
-];
+interface AdminStats {
+  totalUsers: number;
+  totalContents: number;
+  totalPurchases: number;
+  totalRevenue: number;
+  pendingRoleRequests: number;
+  pendingContents: number;
+  newUsersThisMonth: number;
+  newContentsThisMonth: number;
+}
 
 export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await adminService.getStats();
+      setStats(data);
+    } catch (err) {
+      console.error('Erreur chargement stats:', err);
+      setError('Impossible de charger les statistiques.');
+      // Fallback avec des stats vides
+      setStats({
+        totalUsers: 0,
+        totalContents: 0,
+        totalPurchases: 0,
+        totalRevenue: 0,
+        pendingRoleRequests: 0,
+        pendingContents: 0,
+        newUsersThisMonth: 0,
+        newContentsThisMonth: 0,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+        <h1 className="text-3xl font-bold mb-2">Tableau de bord Admin</h1>
         <p className="text-muted-foreground">
-          Vue d&apos;ensemble de La Bibliothèque des Rois
+          Vue d'ensemble de La Bibliothèque des Rois
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <Card 
-            key={stat.label}
-            className="animate-fade-up"
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div 
-                  className="h-12 w-12 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: stat.color + '20' }}
-                >
-                  <stat.icon className="h-6 w-6" style={{ color: stat.color }} />
-                </div>
-                <Badge 
-                  variant={stat.trend === 'up' ? 'default' : 'destructive'}
-                  className={stat.trend === 'up' ? 'bg-green-500/20 text-green-500' : ''}
-                >
-                  {stat.trend === 'up' ? (
-                    <ArrowUpRight className="h-3 w-3 mr-1" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3 mr-1" />
-                  )}
-                  {stat.change}
-                </Badge>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Stats */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Utilisateurs</p>
+                <p className="text-3xl font-bold">{stats?.totalUsers.toLocaleString()}</p>
+                {stats?.newUsersThisMonth !== undefined && stats.newUsersThisMonth > 0 && (
+                  <p className="text-xs text-green-500 mt-1">
+                    +{stats.newUsersThisMonth} ce mois
+                  </p>
+                )}
               </div>
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
+              <div className="w-14 h-14 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <Users className="h-7 w-7 text-blue-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Contenus</p>
+                <p className="text-3xl font-bold">{stats?.totalContents.toLocaleString()}</p>
+                {stats?.newContentsThisMonth !== undefined && stats.newContentsThisMonth > 0 && (
+                  <p className="text-xs text-green-500 mt-1">
+                    +{stats.newContentsThisMonth} ce mois
+                  </p>
+                )}
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-green-500/10 flex items-center justify-center">
+                <BookOpen className="h-7 w-7 text-green-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Ventes</p>
+                <p className="text-3xl font-bold">{stats?.totalPurchases.toLocaleString()}</p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <ShoppingBag className="h-7 w-7 text-purple-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Revenus</p>
+                <p className="text-3xl font-bold">
+                  {(stats?.totalRevenue || 0).toLocaleString()} XAF
+                </p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
+                <DollarSign className="h-7 w-7 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Pending Role Requests */}
+        <Link href="/admin/role-requests">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <UserCheck className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Demandes de rôle</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {stats?.pendingRoleRequests || 0} en attente
+                  </p>
+                </div>
+                {(stats?.pendingRoleRequests || 0) > 0 && (
+                  <Badge variant="destructive">{stats?.pendingRoleRequests}</Badge>
+                )}
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
             </CardContent>
           </Card>
-        ))}
+        </Link>
+
+        {/* Pending Contents */}
+        <Link href="/admin/contents?status=PENDING_REVIEW">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-orange-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Contenus à valider</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {stats?.pendingContents || 0} en attente
+                  </p>
+                </div>
+                {(stats?.pendingContents || 0) > 0 && (
+                  <Badge variant="destructive">{stats?.pendingContents}</Badge>
+                )}
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Users Management */}
+        <Link href="/admin/users">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Gestion utilisateurs</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Voir tous les utilisateurs
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
-      {/* Pending Actions */}
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            Actions en attente
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {pendingActions.map((action) => (
-              <Link 
-                key={action.type}
-                href={action.href}
-                className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
-              >
-                <div>
-                  <p className="font-medium">{action.label}</p>
-                  <p className="text-sm text-muted-foreground">À traiter</p>
-                </div>
-                <Badge variant="destructive" className="text-lg px-3 py-1">
-                  {action.count}
-                </Badge>
+      {/* Recent Activity */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions rapides</CardTitle>
+            <CardDescription>Accédez rapidement aux fonctionnalités admin</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/admin/users">
+                <Users className="h-4 w-4 mr-2" />
+                Gérer les utilisateurs
               </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Recent Users */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Nouveaux utilisateurs
-            </CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/admin/users">Voir tout</Link>
             </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {recentUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                    {user.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium">{user.username}</p>
-                    <p className="text-sm text-muted-foreground">{user.email}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge variant="outline">{user.role}</Badge>
-                  <p className="text-xs text-muted-foreground mt-1">{user.createdAt}</p>
-                </div>
-              </div>
-            ))}
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/admin/contents">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Gérer les contenus
+              </Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/admin/role-requests">
+                <UserCheck className="h-4 w-4 mr-2" />
+                Demandes de rôle
+              </Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/admin/categories">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Gérer les catégories
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Recent Contents */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileCheck className="h-5 w-5" />
-              Contenus récents
-            </CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/admin/contents">Voir tout</Link>
-            </Button>
+          <CardHeader>
+            <CardTitle>Statistiques</CardTitle>
+            <CardDescription>Performance de la plateforme</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {recentContents.map((content) => (
-              <div key={content.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-secondary/20 flex items-center justify-center">
-                    <BookOpen className="h-5 w-5 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{content.title}</p>
-                    <p className="text-sm text-muted-foreground">par {content.author}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge 
-                    variant={content.status === 'APPROVED' ? 'default' : 'secondary'}
-                    className={content.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}
-                  >
-                    {content.status === 'APPROVED' ? 'Publié' : 'En attente'}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground mt-1">{content.type}</p>
-                </div>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Taux de conversion</span>
+                <span className="font-semibold">
+                  {stats?.totalUsers && stats?.totalPurchases 
+                    ? ((stats.totalPurchases / stats.totalUsers) * 100).toFixed(1) 
+                    : 0}%
+                </span>
               </div>
-            ))}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Revenu moyen/vente</span>
+                <span className="font-semibold">
+                  {stats?.totalRevenue && stats?.totalPurchases 
+                    ? Math.round(stats.totalRevenue / stats.totalPurchases).toLocaleString() 
+                    : 0} XAF
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Contenus/créateur</span>
+                <span className="font-semibold">
+                  {stats?.totalUsers && stats?.totalContents 
+                    ? (stats.totalContents / Math.max(1, stats.totalUsers / 10)).toFixed(1) 
+                    : 0}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Revenue Chart Placeholder */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Revenus - 30 derniers jours</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-            <p>Graphique des revenus (à intégrer avec une lib de charts)</p>
-          </div>
-          
-          {/* Quick stats */}
-          <div className="grid grid-cols-4 gap-4 mt-6">
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold text-gradient-gold">2.5M</p>
-              <p className="text-sm text-muted-foreground">Revenus totaux</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold">1,234</p>
-              <p className="text-sm text-muted-foreground">Transactions</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold">2,025</p>
-              <p className="text-sm text-muted-foreground">Panier moyen</p>
-            </div>
-            <div className="text-center p-4 rounded-xl bg-muted/30">
-              <p className="text-2xl font-bold text-green-500">+23%</p>
-              <p className="text-sm text-muted-foreground">vs mois dernier</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -15,6 +15,12 @@ export const purchasesService = {
     return response.data;
   },
   
+  // Acheter un contenu (simplifié)
+  async purchase(contentId: number): Promise<Purchase> {
+    const response = await apiClient.post<Purchase>(`/api/contents/${contentId}/purchase`);
+    return response.data;
+  },
+  
   // Confirmer l'achat
   async complete(id: number): Promise<Purchase> {
     const response = await apiClient.post<Purchase>(PURCHASES.COMPLETE(id));
