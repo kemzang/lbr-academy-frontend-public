@@ -115,7 +115,7 @@ export default function EditContentPage() {
         tags: contentData.tags || '',
         language: contentData.language || 'fr',
         pageCount: contentData.pageCount?.toString() || '',
-        duration: contentData.duration?.toString() || '',
+        duration: contentData.duration ? Math.floor(contentData.duration / 60).toString() : '', // Convertir secondes en minutes
         freePreview: contentData.freePreview || '',
       });
     } catch (err) {
@@ -189,7 +189,7 @@ export default function EditContentPage() {
         tags: formData.tags.trim() || undefined,
         language: formData.language,
         pageCount: formData.pageCount ? parseInt(formData.pageCount) : undefined,
-        duration: formData.duration ? parseInt(formData.duration) : undefined,
+        duration: formData.duration ? parseInt(formData.duration) * 60 : undefined, // Convertir minutes en secondes
         freePreview: formData.freePreview.trim() || undefined,
       };
 
@@ -467,6 +467,13 @@ export default function EditContentPage() {
                   <input
                     type="file"
                     className="hidden"
+                    accept={
+                      formData.type === 'AUDIO'
+                        ? 'audio/*,.mp3,.m4a,.wav'
+                        : formData.type === 'VIDEO'
+                        ? 'video/*,.mp4,.webm'
+                        : '.pdf,.epub,.txt'
+                    }
                     onChange={handleContentFileChange}
                   />
                 </label>
@@ -525,6 +532,53 @@ export default function EditContentPage() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Métadonnées */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Informations supplémentaires</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid sm:grid-cols-2 gap-4">
+              {/* Nombre de pages */}
+              {(formData.type === 'BOOK' || formData.type === 'ARTICLE') && (
+                <div className="space-y-2">
+                  <Label htmlFor="pageCount">Nombre de pages</Label>
+                  <Input
+                    id="pageCount"
+                    name="pageCount"
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 150"
+                    value={formData.pageCount}
+                    onChange={handleChange}
+                  />
+                </div>
+              )}
+
+              {/* Durée */}
+              {(formData.type === 'VIDEO' || formData.type === 'AUDIO' || formData.type === 'FORMATION') && (
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Durée (en minutes)</Label>
+                  <Input
+                    id="duration"
+                    name="duration"
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 30 (sera converti en secondes)"
+                    value={formData.duration}
+                    onChange={handleChange}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.duration 
+                      ? `${formData.duration} min = ${parseInt(formData.duration || '0') * 60} secondes`
+                      : 'La durée sera convertie en secondes pour le backend'}
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

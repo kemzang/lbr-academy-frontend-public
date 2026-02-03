@@ -45,6 +45,7 @@ const typeIcons = {
   ARTICLE: FileText,
   FORMATION: GraduationCap,
   SERIES: Library,
+  AUDIO: Headphones,
   AUDIOBOOK: Headphones,
   PODCAST: Headphones,
   VIDEO: Play,
@@ -239,12 +240,12 @@ export default function ContentReadPage() {
                   <Eye className="h-4 w-4" />
                   {content.viewCount?.toLocaleString() || 0} vues
                 </div>
-                {content.rating && (
+                {content.averageRating > 0 && (
                   <>
                     <Separator orientation="vertical" className="h-4" />
                     <div className="flex items-center gap-1">
                       <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-                      {content.rating.toFixed(1)}
+                      {content.averageRating.toFixed(1)}
                     </div>
                   </>
                 )}
@@ -286,10 +287,10 @@ export default function ContentReadPage() {
         <Card>
           <CardContent className="p-6 md:p-8">
             {/* Cover Image */}
-            {content.coverImageUrl && (
+            {content.coverUrl && (
               <div className="mb-8">
                 <img 
-                  src={content.coverImageUrl} 
+                  src={content.coverUrl} 
                   alt={content.title}
                   className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
                 />
@@ -305,18 +306,55 @@ export default function ContentReadPage() {
               </div>
             )}
 
+            {/* Audio/Video Player */}
+            {content.type === 'VIDEO' && content.fileUrl && (
+              <div className="mb-8">
+                <video 
+                  controls 
+                  src={content.fileUrl} 
+                  className="w-full rounded-lg shadow-lg"
+                  poster={content.coverUrl}
+                >
+                  Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
+              </div>
+            )}
+
+            {content.type === 'AUDIO' && content.fileUrl && (
+              <div className="mb-8">
+                <div className="bg-muted/50 rounded-lg p-6">
+                  {content.coverUrl && (
+                    <div className="mb-4 text-center">
+                      <img 
+                        src={content.coverUrl} 
+                        alt={content.title}
+                        className="w-48 h-48 mx-auto rounded-lg object-cover"
+                      />
+                    </div>
+                  )}
+                  <audio 
+                    controls 
+                    src={content.fileUrl} 
+                    className="w-full"
+                  >
+                    Votre navigateur ne supporte pas la lecture audio.
+                  </audio>
+                </div>
+              </div>
+            )}
+
             {/* Body Content */}
             {content.body ? (
               <div 
                 className="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline"
                 dangerouslySetInnerHTML={{ __html: content.body }}
               />
-            ) : (
+            ) : content.type !== 'VIDEO' && content.type !== 'AUDIO' ? (
               <div className="text-center py-16">
                 <FileText className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-muted-foreground">Contenu en cours de chargement...</p>
               </div>
-            )}
+            ) : null}
 
             {/* File Download Section */}
             {content.fileUrl && (
@@ -357,9 +395,8 @@ export default function ContentReadPage() {
                   <h4 className="font-semibold mb-2">Statistiques</h4>
                   <div className="space-y-1 text-muted-foreground">
                     <p>Vues: {content.viewCount?.toLocaleString() || 0}</p>
-                    <p>Achats: {content.purchaseCount?.toLocaleString() || 0}</p>
-                    {content.rating && (
-                      <p>Note moyenne: {content.rating.toFixed(1)} / 5</p>
+                    {content.averageRating > 0 && (
+                      <p>Note moyenne: {content.averageRating.toFixed(1)} / 5 ({content.ratingCount || 0} avis)</p>
                     )}
                   </div>
                 </div>
@@ -388,12 +425,7 @@ export default function ContentReadPage() {
                       {authorRole.label}
                     </Badge>
                   </div>
-                  {content.author.bio && (
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {content.author.bio}
-                    </p>
-                  )}
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" size="sm" asChild className="mt-3">
                     <Link href={`/creators/${content.author.id}`}>
                       Voir le profil
                     </Link>

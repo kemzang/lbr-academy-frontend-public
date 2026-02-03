@@ -134,6 +134,14 @@ export default function NewContentPage() {
       toast.error('La description est requise');
       return;
     }
+    if ((formData.type === 'AUDIO' || formData.type === 'VIDEO') && !contentFile) {
+      toast.error(`Le fichier ${formData.type === 'AUDIO' ? 'audio' : 'vidéo'} est requis`);
+      return;
+    }
+    if ((formData.type === 'AUDIO' || formData.type === 'VIDEO') && !formData.duration) {
+      toast.error('La durée est requise pour les contenus audio/vidéo');
+      return;
+    }
     if (!formData.isFree && (!formData.price || parseFloat(formData.price) <= 0)) {
       toast.error('Le prix est requis pour un contenu payant');
       return;
@@ -155,7 +163,7 @@ export default function NewContentPage() {
         tags: formData.tags.trim() || undefined,
         language: formData.language,
         pageCount: formData.pageCount ? parseInt(formData.pageCount) : undefined,
-        duration: formData.duration ? parseInt(formData.duration) : undefined,
+        duration: formData.duration ? parseInt(formData.duration) * 60 : undefined, // Convertir minutes en secondes
         freePreview: formData.freePreview.trim() || undefined,
       };
 
@@ -302,7 +310,19 @@ export default function NewContentPage() {
               <Textarea
                 id="description"
                 name="description"
-                placeholder="Décrivez votre contenu en détail. Qu'est-ce que le lecteur va apprendre ? À qui s'adresse-t-il ?"
+                placeholder={
+                  formData.type === 'AUDIO' 
+                    ? "Décrivez votre podcast ou audiobook. Quel est le sujet ? Quelle est la durée ? À qui s'adresse-t-il ?"
+                    : formData.type === 'VIDEO'
+                    ? "Décrivez votre vidéo. Quel est le contenu ? Quelle est la durée ? À qui s'adresse-t-elle ?"
+                    : formData.type === 'BOOK'
+                    ? "Décrivez votre livre. Quel est le sujet ? Combien de pages ? À qui s'adresse-t-il ?"
+                    : formData.type === 'ARTICLE'
+                    ? "Décrivez votre article. Quel est le sujet ? À qui s'adresse-t-il ?"
+                    : formData.type === 'FORMATION'
+                    ? "Décrivez votre formation. Quels sont les modules ? Quelle est la durée ? À qui s'adresse-t-elle ?"
+                    : "Décrivez votre contenu en détail. Qu'est-ce que le lecteur va apprendre ? À qui s'adresse-t-il ?"
+                }
                 value={formData.description}
                 onChange={handleChange}
                 rows={6}
@@ -366,13 +386,82 @@ export default function NewContentPage() {
           <CardHeader>
             <CardTitle>Médias</CardTitle>
             <CardDescription>
-              Ajoutez une couverture et votre fichier de contenu
+              {formData.type === 'AUDIO' || formData.type === 'VIDEO'
+                ? 'Ajoutez votre fichier média et une image de couverture (optionnel)'
+                : formData.type === 'BOOK' || formData.type === 'ARTICLE'
+                ? 'Ajoutez votre document et une image de couverture'
+                : 'Ajoutez une couverture et votre fichier de contenu'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Couverture */}
+            {/* Fichier de contenu - Prioritaire pour AUDIO/VIDEO */}
+            {(formData.type === 'AUDIO' || formData.type === 'VIDEO') && (
+              <div className="space-y-2">
+                <Label>
+                  Fichier {formData.type === 'AUDIO' ? 'audio' : 'vidéo'} *
+                  <span className="text-destructive ml-1">(requis)</span>
+                </Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 p-4 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
+                    <FileUp className="h-8 w-8 text-muted-foreground" />
+                    <div className="flex-1">
+                      {contentFile ? (
+                        <div>
+                          <p className="font-medium">{contentFile.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(contentFile.size / 1024 / 1024).toFixed(2)} Mo
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="font-medium">Cliquez pour uploader</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formData.type === 'AUDIO' 
+                              ? 'MP3, WAV, M4A (audio)' 
+                              : 'MP4, WebM (vidéo)'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept={
+                        formData.type === 'AUDIO'
+                          ? 'audio/*,.mp3,.m4a,.wav'
+                          : 'video/*,.mp4,.webm'
+                      }
+                      onChange={handleContentFileChange}
+                    />
+                  </label>
+                  {contentFile && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setContentFile(null)}
+                      aria-label="Supprimer le fichier"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formData.type === 'AUDIO' 
+                    ? 'Formats acceptés : MP3, M4A, WAV (max 50 Mo). Le fichier audio est obligatoire.'
+                    : 'Formats acceptés : MP4, WebM (max 50 Mo). Le fichier vidéo est obligatoire.'}
+                </p>
+              </div>
+            )}
+
+            {/* Couverture - Optionnelle pour AUDIO/VIDEO */}
             <div className="space-y-2">
-              <Label>Image de couverture</Label>
+              <Label>
+                Image de couverture
+                {(formData.type === 'AUDIO' || formData.type === 'VIDEO') && (
+                  <span className="text-muted-foreground ml-1 text-xs">(optionnel)</span>
+                )}
+              </Label>
               <div className="flex items-start gap-4">
                 {coverPreview ? (
                   <div className="relative w-32 aspect-[3/4] rounded-lg overflow-hidden border">
@@ -385,6 +474,8 @@ export default function NewContentPage() {
                       type="button"
                       onClick={() => { setCoverPreview(null); setCoverFile(null); }}
                       className="absolute top-1 right-1 p-1 bg-background/80 rounded-full hover:bg-background"
+                      aria-label="Supprimer l'image de couverture"
+                      title="Supprimer l'image de couverture"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -402,54 +493,64 @@ export default function NewContentPage() {
                   </label>
                 )}
                 <div className="text-sm text-muted-foreground">
-                  <p>Format recommandé : 600×800 pixels</p>
+                  <p>Format recommandé : {formData.type === 'AUDIO' || formData.type === 'VIDEO' ? '1200×1200 pixels (carré)' : '600×800 pixels'}</p>
                   <p>Formats acceptés : JPG, PNG, WebP</p>
                   <p>Taille max : 5 Mo</p>
+                  {(formData.type === 'AUDIO' || formData.type === 'VIDEO') && (
+                    <p className="text-xs mt-1">L'image sera utilisée comme miniature dans les lecteurs</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Fichier de contenu */}
-            <div className="space-y-2">
-              <Label>Fichier du contenu</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex-1 p-4 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
-                  <FileUp className="h-8 w-8 text-muted-foreground" />
-                  <div className="flex-1">
-                    {contentFile ? (
-                      <div>
-                        <p className="font-medium">{contentFile.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {(contentFile.size / 1024 / 1024).toFixed(2)} Mo
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="font-medium">Cliquez pour uploader</p>
-                        <p className="text-sm text-muted-foreground">
-                          PDF, EPUB, MP3, MP4, etc.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={handleContentFileChange}
-                  />
-                </label>
-                {contentFile && (
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setContentFile(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+            {/* Fichier de contenu - Pour les autres types */}
+            {formData.type !== 'AUDIO' && formData.type !== 'VIDEO' && (
+              <div className="space-y-2">
+                <Label>Fichier du contenu</Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 p-4 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
+                    <FileUp className="h-8 w-8 text-muted-foreground" />
+                    <div className="flex-1">
+                      {contentFile ? (
+                        <div>
+                          <p className="font-medium">{contentFile.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(contentFile.size / 1024 / 1024).toFixed(2)} Mo
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="font-medium">Cliquez pour uploader</p>
+                          <p className="text-sm text-muted-foreground">
+                            PDF, EPUB, TXT (documents)
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.epub,.txt"
+                      onChange={handleContentFileChange}
+                    />
+                  </label>
+                  {contentFile && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setContentFile(null)}
+                      aria-label="Supprimer le fichier"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Formats acceptés : PDF, EPUB, TXT (max 50 Mo)
+                </p>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -484,7 +585,13 @@ export default function NewContentPage() {
                     type="number"
                     min="0"
                     step="100"
-                    placeholder="5000"
+                    placeholder={
+                      formData.type === 'AUDIO' || formData.type === 'VIDEO'
+                        ? "2000"
+                        : formData.type === 'BOOK'
+                        ? "5000"
+                        : "3000"
+                    }
                     value={formData.price}
                     onChange={handleChange}
                     className="flex-1"
@@ -503,6 +610,14 @@ export default function NewContentPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {formData.type === 'AUDIO' && 'Prix suggéré : 1000-5000 XAF pour un podcast/audiobook'}
+                  {formData.type === 'VIDEO' && 'Prix suggéré : 2000-8000 XAF pour une vidéo'}
+                  {formData.type === 'BOOK' && 'Prix suggéré : 3000-10000 XAF pour un livre'}
+                  {formData.type === 'ARTICLE' && 'Prix suggéré : 500-2000 XAF pour un article'}
+                  {formData.type === 'FORMATION' && 'Prix suggéré : 5000-20000 XAF pour une formation'}
+                  {formData.type === 'SERIES' && 'Prix suggéré : 10000-50000 XAF pour une série'}
+                </p>
               </div>
             )}
 
@@ -522,46 +637,72 @@ export default function NewContentPage() {
         </Card>
 
         {/* Métadonnées */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations supplémentaires</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* Nombre de pages */}
-              {(formData.type === 'BOOK' || formData.type === 'ARTICLE') && (
-                <div className="space-y-2">
-                  <Label htmlFor="pageCount">Nombre de pages</Label>
-                  <Input
-                    id="pageCount"
-                    name="pageCount"
-                    type="number"
-                    min="1"
-                    placeholder="Ex: 150"
-                    value={formData.pageCount}
-                    onChange={handleChange}
-                  />
-                </div>
-              )}
+        {(formData.type === 'BOOK' || formData.type === 'ARTICLE' || formData.type === 'VIDEO' || formData.type === 'AUDIO' || formData.type === 'FORMATION') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Informations supplémentaires</CardTitle>
+              <CardDescription>
+                {formData.type === 'BOOK' || formData.type === 'ARTICLE'
+                  ? 'Aidez les lecteurs à mieux comprendre votre contenu'
+                  : 'Informations sur la durée de votre contenu'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Nombre de pages */}
+                {(formData.type === 'BOOK' || formData.type === 'ARTICLE') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pageCount">Nombre de pages</Label>
+                    <Input
+                      id="pageCount"
+                      name="pageCount"
+                      type="number"
+                      min="1"
+                      placeholder={formData.type === 'BOOK' ? "Ex: 150" : "Ex: 10"}
+                      value={formData.pageCount}
+                      onChange={handleChange}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.type === 'BOOK' 
+                        ? 'Nombre approximatif de pages de votre livre'
+                        : 'Nombre approximatif de pages de votre article'}
+                    </p>
+                  </div>
+                )}
 
-              {/* Durée */}
-              {(formData.type === 'VIDEO' || formData.type === 'AUDIO' || formData.type === 'FORMATION') && (
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Durée (en minutes)</Label>
-                  <Input
-                    id="duration"
-                    name="duration"
-                    type="number"
-                    min="1"
-                    placeholder="Ex: 120"
-                    value={formData.duration}
-                    onChange={handleChange}
-                  />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {/* Durée */}
+                {(formData.type === 'VIDEO' || formData.type === 'AUDIO' || formData.type === 'FORMATION') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Durée (en minutes) *</Label>
+                    <Input
+                      id="duration"
+                      name="duration"
+                      type="number"
+                      min="1"
+                      placeholder={
+                        formData.type === 'AUDIO'
+                          ? "Ex: 30 (podcast)"
+                          : formData.type === 'VIDEO'
+                          ? "Ex: 15 (tutoriel)"
+                          : "Ex: 120 (formation complète)"
+                      }
+                      value={formData.duration}
+                      onChange={handleChange}
+                      required={formData.type === 'AUDIO' || formData.type === 'VIDEO'}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.duration 
+                        ? `${formData.duration} min = ${parseInt(formData.duration || '0') * 60} secondes`
+                        : formData.type === 'AUDIO' || formData.type === 'VIDEO'
+                        ? 'La durée est requise et sera convertie en secondes'
+                        : 'La durée sera convertie en secondes pour le backend'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-4 pt-4">
