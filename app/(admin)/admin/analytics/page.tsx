@@ -326,8 +326,8 @@ export default function AdminAnalyticsPage() {
             <CardContent>
               {recentActivity.length > 0 ? (
                 <div className="space-y-4">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center gap-4 py-2">
+                  {recentActivity.map((activity, index) => (
+                    <div key={`${activity.id}-${activity.createdAt}-${index}`} className="flex items-center gap-4 py-2">
                       <div className={`w-2 h-2 rounded-full ${
                         activity.type === 'PURCHASE' ? 'bg-green-500' :
                         activity.type === 'REGISTER' ? 'bg-blue-500' :

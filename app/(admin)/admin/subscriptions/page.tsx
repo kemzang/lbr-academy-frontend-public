@@ -83,9 +83,13 @@ export default function AdminSubscriptionsPage() {
       setError(null);
       const data = await subscriptionsService.getPlans();
       setPlans(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur chargement plans:', err);
-      setError('Impossible de charger les plans.');
+      const errorMessage = err?.error?.code === 'JSON_PARSE_ERROR'
+        ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
+        : err?.message || 'Impossible de charger les plans.';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

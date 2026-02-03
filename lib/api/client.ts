@@ -154,7 +154,89 @@ class ApiClient {
       }
     }
     
-    const data = await response.json();
+    // Vérifier le Content-Type avant de parser
+    const contentType = response.headers.get('content-type');
+    let data: unknown;
+    let responseText = '';
+    
+    try {
+      responseText = await response.text();
+      
+      // Si ce n'est pas du JSON, lancer une erreur
+      if (!contentType?.includes('application/json')) {
+        console.error('Réponse non-JSON:', {
+          url,
+          status: response.status,
+          contentType,
+          preview: responseText.substring(0, 500)
+        });
+        throw new Error(`Réponse non-JSON reçue. Content-Type: ${contentType}`);
+      }
+      
+      // Essayer de parser le JSON
+      if (!responseText.trim()) {
+        throw new Error('Réponse vide du serveur');
+      }
+      
+      // Chercher le premier JSON valide dans la réponse (au cas où il y aurait du contenu avant/après)
+      let jsonText = responseText.trim();
+      const firstBrace = jsonText.indexOf('{');
+      const firstBracket = jsonText.indexOf('[');
+      
+      if (firstBrace !== -1 || firstBracket !== -1) {
+        const startIndex = firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket) 
+          ? firstBrace 
+          : firstBracket;
+        jsonText = jsonText.substring(startIndex);
+        
+        // Trouver la fin du JSON (dernière accolade ou crochet correspondant)
+        let braceCount = 0;
+        let bracketCount = 0;
+        let endIndex = -1;
+        
+        for (let i = 0; i < jsonText.length; i++) {
+          if (jsonText[i] === '{') braceCount++;
+          if (jsonText[i] === '}') braceCount--;
+          if (jsonText[i] === '[') bracketCount++;
+          if (jsonText[i] === ']') bracketCount--;
+          
+          if (braceCount === 0 && bracketCount === 0 && (jsonText[i] === '}' || jsonText[i] === ']')) {
+            endIndex = i + 1;
+            break;
+          }
+        }
+        
+        if (endIndex !== -1) {
+          jsonText = jsonText.substring(0, endIndex);
+        }
+      }
+      
+      data = JSON.parse(jsonText);
+    } catch (parseError: any) {
+      console.error('Erreur parsing JSON:', {
+        error: parseError.message,
+        url,
+        status: response.status,
+        contentType,
+        responseLength: responseText.length,
+        preview: responseText.substring(0, 1000)
+      });
+      
+      // Si c'est une erreur de parsing JSON, essayer de récupérer plus d'infos
+      const errorMessage = parseError.message || 'Erreur lors du parsing de la réponse du serveur';
+      
+      throw {
+        success: false,
+        message: errorMessage.includes('JSON') 
+          ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
+          : errorMessage,
+        error: {
+          code: 'JSON_PARSE_ERROR',
+          details: `Impossible de parser la réponse JSON: ${errorMessage}`,
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiError;
+    }
     
     if (!response.ok) {
       throw data as ApiError;
