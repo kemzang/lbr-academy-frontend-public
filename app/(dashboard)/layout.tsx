@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { useNotifications } from '@/hooks/use-notifications';
 
 const sidebarLinks = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -44,6 +45,7 @@ const sidebarLinks = [
 function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const { user } = useAuthStore();
+  const { unreadCount } = useNotifications();
   
   const isCreator = ['CREATEUR', 'ENTREPRENEUR', 'HYBRIDE', 'COACH', 'ADMIN'].includes(user?.role || '');
   
@@ -97,9 +99,9 @@ function Sidebar({ className }: { className?: string }) {
             >
               <link.icon className="h-5 w-5 flex-shrink-0" />
               <span className="hidden lg:block">{link.label}</span>
-              {link.href === '/notifications' && (
+              {link.href === '/notifications' && unreadCount > 0 && (
                 <Badge className="ml-auto hidden lg:flex h-5 w-5 p-0 items-center justify-center text-xs">
-                  3
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               )}
             </Link>

@@ -4,6 +4,9 @@
 
 import { ContentType, UserRole, ContentStatus } from '@/config/theme';
 
+// Réexporter les types depuis config/theme pour faciliter les imports
+export type { UserRole, ContentType, ContentStatus };
+
 // ==================== API Response ====================
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -33,6 +36,7 @@ export interface PaginatedResponse<T> {
   last: boolean;
   hasNext: boolean;
   hasPrevious: boolean;
+  unreadCount?: number; // Pour les notifications
 }
 
 // ==================== Auth ====================
@@ -349,8 +353,7 @@ export interface Notification {
 }
 
 export interface NotificationCount {
-  unread: number;
-  total: number;
+  unreadCount: number;
 }
 
 // ==================== Role Upgrade ====================

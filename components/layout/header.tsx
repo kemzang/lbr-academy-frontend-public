@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { useNotifications } from '@/hooks/use-notifications';
 
 const navLinks = [
   { href: '/', label: 'Accueil' },
@@ -50,11 +51,14 @@ const navLinks = [
 export function Header() {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { unreadCount } = useNotifications();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
@@ -135,9 +139,11 @@ export function Header() {
                 <Button variant="ghost" size="icon" className="relative" asChild>
                   <Link href="/notifications">
                     <Bell className="h-5 w-5" />
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
-                      3
-                    </Badge>
+                    {unreadCount > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
                   </Link>
                 </Button>
 
@@ -238,13 +244,14 @@ export function Header() {
             )}
 
             {/* Mobile menu */}
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild className="lg:hidden">
-                <Button variant="ghost" size="icon">
-                  {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-80 p-0">
+            {mounted && (
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild className="lg:hidden">
+                  <Button variant="ghost" size="icon">
+                    {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-80 p-0">
                 <div className="flex flex-col h-full">
                   {/* Mobile search */}
                   <div className="p-4 border-b border-border">
@@ -299,8 +306,14 @@ export function Header() {
                     </div>
                   )}
                 </div>
-              </SheetContent>
-            </Sheet>
+                </SheetContent>
+              </Sheet>
+            )}
+            {!mounted && (
+              <Button variant="ghost" size="icon" className="lg:hidden" disabled>
+                <Menu className="h-5 w-5" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
