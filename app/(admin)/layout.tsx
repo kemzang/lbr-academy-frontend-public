@@ -4,7 +4,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -25,20 +26,43 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useAuthStore } from '@/stores/auth-store';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { adminService } from '@/lib/api/admin';
 
 const adminLinks = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Utilisateurs', icon: Users },
-  { href: '/admin/contents', label: 'Contenus', icon: BookOpen, badge: 15 },
+  { href: '/admin/contents', label: 'Contenus', icon: BookOpen, badgeKey: 'pendingContents' },
   { href: '/admin/categories', label: 'Catégories', icon: FolderTree },
   { href: '/admin/subscriptions', label: 'Abonnements', icon: CreditCard },
-  { href: '/admin/role-requests', label: 'Demandes de rôle', icon: UserCog, badge: 8 },
+  { href: '/admin/role-requests', label: 'Demandes de rôle', icon: UserCog, badgeKey: 'pendingRoleUpgrades' },
   { href: '/admin/analytics', label: 'Statistiques', icon: BarChart3 },
   { href: '/admin/settings', label: 'Paramètres', icon: Settings },
 ];
 
 function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
+  const [badges, setBadges] = useState<{ pendingContents?: number; pendingRoleUpgrades?: number }>({});
+
+  useEffect(() => {
+    const loadBadges = async () => {
+      try {
+        const stats = await adminService.getStats();
+        setBadges({
+          pendingContents: stats.pendingContentApprovals || 0,
+          pendingRoleUpgrades: stats.pendingRoleUpgrades || 0,
+        });
+      } catch (err) {
+        console.error('Erreur chargement badges:', err);
+      }
+    };
+    loadBadges();
+    // Rafraîchir toutes les 30 secondes
+    const interval = setInterval(loadBadges, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className={cn('flex flex-col h-full bg-card', className)}>
@@ -72,9 +96,9 @@ function AdminSidebar({ className }: { className?: string }) {
             >
               <link.icon className="h-5 w-5 flex-shrink-0" />
               <span className="hidden lg:block flex-1">{link.label}</span>
-              {link.badge && (
+              {link.badgeKey && badges[link.badgeKey as keyof typeof badges] && badges[link.badgeKey as keyof typeof badges]! > 0 && (
                 <Badge className="ml-auto h-5 min-w-[20px] flex items-center justify-center text-xs bg-destructive">
-                  {link.badge}
+                  {badges[link.badgeKey as keyof typeof badges]}
                 </Badge>
               )}
             </Link>
@@ -100,7 +124,37 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login?redirect=' + encodeURIComponent(window.location.pathname));
+      return;
+    }
+
+    // Vérifier que l'utilisateur est admin
+    if (user?.role !== 'ADMIN') {
+      router.push('/dashboard');
+      return;
+    }
+
+    setIsChecking(false);
+  }, [isAuthenticated, user, router]);
+
+  // Afficher un loader pendant la vérification
+  if (isChecking || !isAuthenticated || user?.role !== 'ADMIN') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

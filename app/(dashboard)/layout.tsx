@@ -21,7 +21,8 @@ import {
   Menu,
   Plus,
   TrendingUp,
-  Award
+  Award,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -48,6 +49,7 @@ function Sidebar({ className }: { className?: string }) {
   const { unreadCount } = useNotifications();
   
   const isCreator = ['CREATEUR', 'ENTREPRENEUR', 'HYBRIDE', 'COACH', 'ADMIN'].includes(user?.role || '');
+  const isAdmin = user?.role === 'ADMIN';
   
   const filteredLinks = sidebarLinks.filter(link => !link.creatorOnly || isCreator);
 
@@ -116,6 +118,19 @@ function Sidebar({ className }: { className?: string }) {
             <Link href="/my-contents/new">
               <Plus className="h-4 w-4 mr-2" />
               <span className="hidden lg:inline">Nouveau contenu</span>
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Admin CTA */}
+      {isAdmin && (
+        <div className="p-4 border-t border-border">
+          <Button className="w-full gradient-gold text-background" asChild>
+            <Link href="/admin">
+              <Shield className="h-4 w-4 mr-2" />
+              <span className="hidden lg:inline">Panel Admin</span>
+              <span className="lg:hidden">Admin</span>
             </Link>
           </Button>
         </div>

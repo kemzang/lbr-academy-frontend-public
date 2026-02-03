@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   BookOpen, 
@@ -31,6 +32,7 @@ import { ContentSummary, Notification, UserSubscription } from '@/types';
 import { formatPrice, formatRelativeDate } from '@/config/theme';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const [stats, setStats] = useState({
     favorites: 0,
@@ -44,8 +46,13 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Rediriger les admins vers le dashboard admin
+    if (user?.role === 'ADMIN') {
+      router.push('/admin');
+      return;
+    }
     loadDashboardData();
-  }, []);
+  }, [user, router]);
 
   const loadDashboardData = async () => {
     try {
