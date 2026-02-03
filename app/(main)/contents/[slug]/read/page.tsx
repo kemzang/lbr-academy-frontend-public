@@ -134,12 +134,27 @@ export default function ContentReadPage() {
     }
   };
 
-  const handleDownload = () => {
-    if (!content?.fileUrl) {
-      toast.error('Fichier non disponible');
+  const handleDownload = async () => {
+    if (!content) {
+      toast.error('Contenu non disponible');
       return;
     }
-    window.open(content.fileUrl, '_blank');
+    
+    try {
+      const blob = await contentsService.download(content.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${content.slug || content.title}.${content.fileUrl?.split('.').pop() || 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Téléchargement démarré');
+    } catch (err) {
+      console.error('Erreur téléchargement:', err);
+      toast.error('Erreur lors du téléchargement');
+    }
   };
 
   if (isLoading) {

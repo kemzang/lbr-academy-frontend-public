@@ -28,6 +28,11 @@ class ApiClient {
     return localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
   }
   
+  // Exposer publiquement pour les téléchargements
+  public getAccessTokenPublic(): string | null {
+    return this.getAccessToken();
+  }
+  
   // Récupérer le refresh token
   private getRefreshToken(): string | null {
     if (typeof window === 'undefined') return null;

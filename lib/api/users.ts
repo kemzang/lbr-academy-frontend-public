@@ -51,6 +51,62 @@ export const usersService = {
     const response = await apiClient.get<PaginatedResponse<UserPublicProfile>>(USERS.CREATORS, { page, size });
     return response.data;
   },
+  
+  // ========================================
+  // PARAMÈTRES UTILISATEUR
+  // ========================================
+  
+  // Récupérer mes paramètres
+  async getSettings(): Promise<{
+    notifications: {
+      emailNewContent: boolean;
+      emailNewFollower: boolean;
+      emailComments: boolean;
+      emailNewsletter: boolean;
+      pushEnabled: boolean;
+    };
+    privacy: {
+      profilePublic: boolean;
+      showEmail: boolean;
+      showActivity: boolean;
+    };
+  }> {
+    const response = await apiClient.get<{
+      notifications: {
+        emailNewContent: boolean;
+        emailNewFollower: boolean;
+        emailComments: boolean;
+        emailNewsletter: boolean;
+        pushEnabled: boolean;
+      };
+      privacy: {
+        profilePublic: boolean;
+        showEmail: boolean;
+        showActivity: boolean;
+      };
+    }>(USERS.SETTINGS);
+    return response.data;
+  },
+  
+  // Mettre à jour les préférences de notifications
+  async updateNotificationsSettings(data: {
+    emailNewContent?: boolean;
+    emailNewFollower?: boolean;
+    emailComments?: boolean;
+    emailNewsletter?: boolean;
+    pushEnabled?: boolean;
+  }): Promise<void> {
+    await apiClient.put(USERS.SETTINGS_NOTIFICATIONS, data);
+  },
+  
+  // Mettre à jour les paramètres de confidentialité
+  async updatePrivacySettings(data: {
+    profilePublic?: boolean;
+    showEmail?: boolean;
+    showActivity?: boolean;
+  }): Promise<void> {
+    await apiClient.put(USERS.SETTINGS_PRIVACY, data);
+  },
 };
 
 export default usersService;

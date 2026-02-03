@@ -220,6 +220,112 @@ export const adminService = {
   async deleteContent(contentId: number): Promise<void> {
     await apiClient.delete(ADMIN.DELETE_CONTENT(contentId));
   },
+
+  // ========================================
+  // PARAMÈTRES DE L'APPLICATION
+  // ========================================
+  
+  // Récupérer tous les paramètres
+  async getSettings(): Promise<{
+    general: {
+      siteName: string;
+      siteDescription: string;
+      siteUrl: string;
+      supportEmail: string;
+      defaultLanguage: string;
+    };
+    content: {
+      requireApproval: boolean;
+      allowComments: boolean;
+      allowRatings: boolean;
+      maxFileSize: number;
+      allowedFileTypes: string[];
+    };
+    notifications: {
+      emailNewUser: boolean;
+      emailNewContent: boolean;
+      emailNewPurchase: boolean;
+      emailNewComment: boolean;
+    };
+    payment: {
+      currency: string;
+      minPrice: number;
+      platformFee: number;
+      paymentMethods: string[];
+    };
+  }> {
+    const response = await apiClient.get<{
+      general: {
+        siteName: string;
+        siteDescription: string;
+        siteUrl: string;
+        supportEmail: string;
+        defaultLanguage: string;
+      };
+      content: {
+        requireApproval: boolean;
+        allowComments: boolean;
+        allowRatings: boolean;
+        maxFileSize: number;
+        allowedFileTypes: string[];
+      };
+      notifications: {
+        emailNewUser: boolean;
+        emailNewContent: boolean;
+        emailNewPurchase: boolean;
+        emailNewComment: boolean;
+      };
+      payment: {
+        currency: string;
+        minPrice: number;
+        platformFee: number;
+        paymentMethods: string[];
+      };
+    }>(ADMIN.SETTINGS);
+    return response.data;
+  },
+  
+  // Mettre à jour les paramètres généraux
+  async updateGeneralSettings(data: {
+    siteName?: string;
+    siteDescription?: string;
+    siteUrl?: string;
+    supportEmail?: string;
+    defaultLanguage?: string;
+  }): Promise<void> {
+    await apiClient.put(ADMIN.SETTINGS_GENERAL, data);
+  },
+  
+  // Mettre à jour les paramètres de contenu
+  async updateContentSettings(data: {
+    requireApproval?: boolean;
+    allowComments?: boolean;
+    allowRatings?: boolean;
+    maxFileSize?: number;
+    allowedFileTypes?: string[];
+  }): Promise<void> {
+    await apiClient.put(ADMIN.SETTINGS_CONTENT, data);
+  },
+  
+  // Mettre à jour les paramètres de notifications
+  async updateNotificationsSettings(data: {
+    emailNewUser?: boolean;
+    emailNewContent?: boolean;
+    emailNewPurchase?: boolean;
+    emailNewComment?: boolean;
+  }): Promise<void> {
+    await apiClient.put(ADMIN.SETTINGS_NOTIFICATIONS, data);
+  },
+  
+  // Mettre à jour les paramètres de paiement
+  async updatePaymentSettings(data: {
+    currency?: string;
+    minPrice?: number;
+    platformFee?: number;
+    paymentMethods?: string[];
+  }): Promise<void> {
+    await apiClient.put(ADMIN.SETTINGS_PAYMENT, data);
+  },
 };
 
 export default adminService;

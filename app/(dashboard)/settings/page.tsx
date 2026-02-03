@@ -46,11 +46,14 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useAuthStore } from '@/stores/auth-store';
-import { authService } from '@/lib/api';
+import { authService, usersService } from '@/lib/api';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function SettingsPage() {
   const { user, logout } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
   // Notification settings
@@ -68,6 +71,24 @@ export default function SettingsPage() {
     showEmail: false,
     showActivity: true,
   });
+  
+  useEffect(() => {
+    loadSettings();
+  }, []);
+  
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await usersService.getSettings();
+      setNotifications(settings.notifications);
+      setPrivacy(settings.privacy);
+    } catch (err) {
+      console.error('Erreur chargement paramètres:', err);
+      toast.error('Impossible de charger les paramètres');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Password change
   const [passwordData, setPasswordData] = useState({
@@ -85,16 +106,28 @@ export default function SettingsPage() {
 
   const handleSaveNotifications = async () => {
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast.success('Préférences de notification enregistrées');
-    setIsSaving(false);
+    try {
+      await usersService.updateNotificationsSettings(notifications);
+      toast.success('Préférences de notification enregistrées');
+    } catch (err) {
+      console.error('Erreur sauvegarde:', err);
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSavePrivacy = async () => {
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast.success('Paramètres de confidentialité enregistrés');
-    setIsSaving(false);
+    try {
+      await usersService.updatePrivacySettings(privacy);
+      toast.success('Paramètres de confidentialité enregistrés');
+    } catch (err) {
+      console.error('Erreur sauvegarde:', err);
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleChangePassword = async () => {
@@ -133,6 +166,15 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     toast.error('Fonctionnalité non disponible. Contactez le support.');
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 max-w-3xl">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">

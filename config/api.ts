@@ -37,6 +37,9 @@ export const API_CONFIG = {
       PUBLIC_PROFILE: (userId: number) => `/users/${userId}/public`,
       SEARCH: '/users/search',
       CREATORS: '/users/creators',
+      SETTINGS: '/users/settings',
+      SETTINGS_NOTIFICATIONS: '/users/settings/notifications',
+      SETTINGS_PRIVACY: '/users/settings/privacy',
     },
     
     // Contents
@@ -56,6 +59,7 @@ export const API_CONFIG = {
       SUBMIT: (id: number) => `/contents/${id}/submit`,
       MY_CONTENTS: '/contents/my',
       RATE: (id: number) => `/contents/${id}/rate`,
+      DOWNLOAD: (id: number) => `/contents/${id}/download`,
     },
     
     // Categories
@@ -159,6 +163,13 @@ export const API_CONFIG = {
       REJECT_CONTENT: (id: number) => `/admin/contents/${id}/reject`,
       FEATURE_CONTENT: (id: number) => `/admin/contents/${id}/feature`,
       DELETE_CONTENT: (id: number) => `/admin/contents/${id}`,
+      
+      // Settings
+      SETTINGS: '/admin/settings',
+      SETTINGS_GENERAL: '/admin/settings/general',
+      SETTINGS_CONTENT: '/admin/settings/content',
+      SETTINGS_NOTIFICATIONS: '/admin/settings/notifications',
+      SETTINGS_PAYMENT: '/admin/settings/payment',
     },
   },
 } as const;

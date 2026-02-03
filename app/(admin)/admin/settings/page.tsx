@@ -33,8 +33,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { adminService } from '@/lib/api';
+import { useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminSettingsPage() {
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
   const [generalSettings, setGeneralSettings] = useState({
@@ -67,15 +71,110 @@ export default function AdminSettingsPage() {
     paymentMethods: 'momo,om,card',
   });
 
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await adminService.getSettings();
+      
+      setGeneralSettings({
+        siteName: settings.general.siteName,
+        siteDescription: settings.general.siteDescription,
+        siteUrl: settings.general.siteUrl,
+        supportEmail: settings.general.supportEmail,
+        defaultLanguage: settings.general.defaultLanguage,
+      });
+      
+      setContentSettings({
+        requireApproval: settings.content.requireApproval,
+        allowComments: settings.content.allowComments,
+        allowRatings: settings.content.allowRatings,
+        maxFileSize: settings.content.maxFileSize.toString(),
+        allowedFileTypes: settings.content.allowedFileTypes.join(','),
+      });
+      
+      setNotificationSettings({
+        emailNewUser: settings.notifications.emailNewUser,
+        emailNewContent: settings.notifications.emailNewContent,
+        emailNewPurchase: settings.notifications.emailNewPurchase,
+        emailNewComment: settings.notifications.emailNewComment,
+      });
+      
+      setPaymentSettings({
+        currency: settings.payment.currency,
+        minPrice: settings.payment.minPrice.toString(),
+        platformFee: settings.payment.platformFee.toString(),
+        paymentMethods: settings.payment.paymentMethods.join(','),
+      });
+    } catch (err) {
+      console.error('Erreur chargement paramètres:', err);
+      toast.error('Impossible de charger les paramètres');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSave = async (section: string) => {
     setIsSaving(true);
     
-    // Simuler la sauvegarde
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast.success(`Paramètres ${section} enregistrés`);
-    setIsSaving(false);
+    try {
+      switch (section) {
+        case 'généraux':
+          await adminService.updateGeneralSettings({
+            siteName: generalSettings.siteName,
+            siteDescription: generalSettings.siteDescription,
+            siteUrl: generalSettings.siteUrl,
+            supportEmail: generalSettings.supportEmail,
+            defaultLanguage: generalSettings.defaultLanguage,
+          });
+          break;
+        case 'contenus':
+          await adminService.updateContentSettings({
+            requireApproval: contentSettings.requireApproval,
+            allowComments: contentSettings.allowComments,
+            allowRatings: contentSettings.allowRatings,
+            maxFileSize: parseInt(contentSettings.maxFileSize),
+            allowedFileTypes: contentSettings.allowedFileTypes.split(',').map(t => t.trim()),
+          });
+          break;
+        case 'notifications':
+          await adminService.updateNotificationsSettings({
+            emailNewUser: notificationSettings.emailNewUser,
+            emailNewContent: notificationSettings.emailNewContent,
+            emailNewPurchase: notificationSettings.emailNewPurchase,
+            emailNewComment: notificationSettings.emailNewComment,
+          });
+          break;
+        case 'paiements':
+          await adminService.updatePaymentSettings({
+            currency: paymentSettings.currency,
+            minPrice: parseInt(paymentSettings.minPrice),
+            platformFee: parseFloat(paymentSettings.platformFee),
+            paymentMethods: paymentSettings.paymentMethods.split(',').map(m => m.trim()),
+          });
+          break;
+      }
+      
+      toast.success(`Paramètres ${section} enregistrés`);
+    } catch (err) {
+      console.error('Erreur sauvegarde:', err);
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

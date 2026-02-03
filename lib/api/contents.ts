@@ -138,6 +138,29 @@ export const contentsService = {
   async rate(id: number, data: RateContentRequest): Promise<void> {
     await apiClient.post(CONTENTS.RATE(id), data);
   },
+  
+  // Télécharger le fichier d'un contenu
+  async download(id: number): Promise<Blob> {
+    const token = apiClient.getAccessTokenPublic();
+    const response = await fetch(`${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors du téléchargement');
+    }
+    
+    return response.blob();
+  },
+  
+  // Obtenir l'URL de téléchargement (pour utilisation directe)
+  getDownloadUrl(id: number): string {
+    const token = apiClient.getAccessTokenPublic();
+    return `${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}${token ? `?token=${token}` : ''}`;
+  },
 };
 
 export default contentsService;
