@@ -336,7 +336,7 @@ function ExplorerContent() {
                 {searchQuery && (
                   <Badge variant="secondary" className="gap-1">
                     Recherche: {searchQuery}
-                    <button onClick={() => setSearchQuery('')}>
+                    <button type="button" onClick={() => setSearchQuery('')} aria-label="Retirer la recherche" title="Retirer la recherche">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
@@ -346,7 +346,7 @@ function ExplorerContent() {
                   return (
                     <Badge key={type} variant="secondary" className="gap-1">
                       {typeInfo?.label}
-                      <button onClick={() => toggleType(type)}>
+                      <button type="button" onClick={() => toggleType(type)} aria-label={`Retirer le filtre ${typeInfo?.label ?? type}`} title={`Retirer le filtre ${typeInfo?.label ?? type}`}>
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
@@ -355,7 +355,7 @@ function ExplorerContent() {
                 {isFreeOnly && (
                   <Badge variant="secondary" className="gap-1">
                     Gratuit
-                    <button onClick={() => setIsFreeOnly(false)}>
+                    <button type="button" onClick={() => setIsFreeOnly(false)} aria-label="Retirer le filtre gratuit" title="Retirer le filtre gratuit">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
@@ -370,14 +370,14 @@ function ExplorerContent() {
 
             {isLoading && contents.length === 0 ? (
               <div className={cn(
-                'grid gap-6',
+                'grid gap-4',
                 viewMode === 'grid' 
-                  ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+                  ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
                   : 'grid-cols-1'
               )}>
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="animate-pulse">
-                    <Skeleton className={viewMode === 'grid' ? 'aspect-[3/4]' : 'h-32'} />
+                    <Skeleton className={viewMode === 'grid' ? 'aspect-[4/3]' : 'h-32'} />
                     <div className="p-4 space-y-2">
                       <Skeleton className="h-5 w-3/4" />
                       <Skeleton className="h-4 w-full" />
@@ -389,16 +389,15 @@ function ExplorerContent() {
             ) : contents.length > 0 ? (
               <>
                 <div className={cn(
-                  'grid gap-6',
+                  'grid gap-4',
                   viewMode === 'grid' 
-                    ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+                    ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
                     : 'grid-cols-1'
                 )}>
                   {contents.map((content, index) => (
-                    <div 
+                    <div
                       key={content.id}
-                      className="animate-fade-up"
-                      style={{ animationDelay: `${index * 50}ms` }}
+                      className={cn('animate-fade-up', `stagger-delay-${Math.min(index, 24)}`)}
                     >
                       <ContentCard 
                         content={content} 

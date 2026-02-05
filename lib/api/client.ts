@@ -139,103 +139,136 @@ class ApiClient {
     if (body) {
       requestConfig.body = isFormData ? (body as FormData) : JSON.stringify(body);
     }
-    
-    let response = await fetch(url, requestConfig);
-    
+
+    let response: Response;
+    try {
+      response = await fetch(url, requestConfig);
+    } catch (networkErr) {
+      const msg = networkErr instanceof Error ? networkErr.message : 'Erreur réseau';
+      const isFailedFetch = msg === 'Failed to fetch' || msg.includes('NetworkError');
+      throw {
+        success: false,
+        message: isFailedFetch
+          ? 'Impossible de joindre le serveur. Vérifiez votre connexion et que le backend est démarré.'
+          : msg,
+        error: { code: 'NETWORK_ERROR', details: msg },
+        timestamp: new Date().toISOString(),
+      } as ApiError;
+    }
+
     // Si 401, essayer de rafraîchir le token
     if (response.status === 401 && accessToken) {
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
         requestHeaders['Authorization'] = `Bearer ${this.getAccessToken()}`;
-        response = await fetch(url, {
-          ...requestConfig,
-          headers: requestHeaders,
-        });
+        try {
+          response = await fetch(url, {
+            ...requestConfig,
+            headers: requestHeaders,
+          });
+        } catch (retryErr) {
+          const retryMsg = retryErr instanceof Error ? retryErr.message : 'Erreur réseau';
+          throw {
+            success: false,
+            message: retryMsg === 'Failed to fetch'
+              ? 'Impossible de joindre le serveur. Vérifiez votre connexion et que le backend est démarré.'
+              : retryMsg,
+            error: { code: 'NETWORK_ERROR', details: retryMsg },
+            timestamp: new Date().toISOString(),
+          } as ApiError;
+        }
       }
     }
     
-    // Vérifier le Content-Type avant de parser
+    // Vérifier le Content-Type et le corps de la réponse
     const contentType = response.headers.get('content-type');
+    const isJsonContentType = contentType?.includes('application/json');
     let data: unknown;
     let responseText = '';
-    
+
     try {
       responseText = await response.text();
-      
-      // Si ce n'est pas du JSON, lancer une erreur
-      if (!contentType?.includes('application/json')) {
-        console.error('Réponse non-JSON:', {
+    } catch (readErr) {
+      throw new Error('Impossible de lire la réponse du serveur');
+    }
+
+    // Normaliser: BOM et espaces (certains backends renvoient {} sans Content-Type ou avec BOM)
+    const trimmed = responseText.replace(/^\uFEFF/, '').trim();
+
+    try {
+      // Réponse vide → traiter comme objet vide (certains endpoints renvoient 200 sans body)
+      if (trimmed === '') {
+        data = {};
+      } else {
+        // Chercher le premier JSON valide dans la réponse (au cas où il y aurait du contenu avant/après)
+        let jsonText = trimmed;
+        const firstBrace = jsonText.indexOf('{');
+        const firstBracket = jsonText.indexOf('[');
+
+        if (firstBrace !== -1 || firstBracket !== -1) {
+          const startIndex =
+            firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)
+              ? firstBrace
+              : firstBracket;
+          jsonText = jsonText.substring(startIndex);
+
+          let braceCount = 0;
+          let bracketCount = 0;
+          let endIndex = -1;
+
+          for (let i = 0; i < jsonText.length; i++) {
+            if (jsonText[i] === '{') braceCount++;
+            if (jsonText[i] === '}') braceCount--;
+            if (jsonText[i] === '[') bracketCount++;
+            if (jsonText[i] === ']') bracketCount--;
+
+            if (
+              braceCount === 0 &&
+              bracketCount === 0 &&
+              (jsonText[i] === '}' || jsonText[i] === ']')
+            ) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+
+          if (endIndex !== -1) {
+            jsonText = jsonText.substring(0, endIndex);
+          }
+        }
+
+        data = JSON.parse(jsonText);
+      }
+    } catch (parseError: unknown) {
+      // Pour les réponses 2xx sans Content-Type JSON, accepter corps vide ou {} / []
+      if (
+        response.ok &&
+        !contentType?.includes('application/json') &&
+        (trimmed === '' || trimmed === '{}' || trimmed === '[]')
+      ) {
+        data = trimmed === '' ? {} : trimmed === '[]' ? [] : {};
+      } else {
+        const errMsg = parseError instanceof Error ? parseError.message : 'Erreur lors du parsing de la réponse du serveur';
+        console.error('Erreur parsing JSON:', {
+          error: errMsg,
           url,
           status: response.status,
           contentType,
-          preview: responseText.substring(0, 500)
+          responseLength: responseText.length,
+          preview: responseText.substring(0, 1000),
         });
-        throw new Error(`Réponse non-JSON reçue. Content-Type: ${contentType}`);
+        throw {
+          success: false,
+          message: errMsg.includes('JSON')
+            ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
+            : errMsg,
+          error: {
+            code: 'JSON_PARSE_ERROR',
+            details: `Impossible de parser la réponse JSON: ${errMsg}`,
+          },
+          timestamp: new Date().toISOString(),
+        } as ApiError;
       }
-      
-      // Essayer de parser le JSON
-      if (!responseText.trim()) {
-        throw new Error('Réponse vide du serveur');
-      }
-      
-      // Chercher le premier JSON valide dans la réponse (au cas où il y aurait du contenu avant/après)
-      let jsonText = responseText.trim();
-      const firstBrace = jsonText.indexOf('{');
-      const firstBracket = jsonText.indexOf('[');
-      
-      if (firstBrace !== -1 || firstBracket !== -1) {
-        const startIndex = firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket) 
-          ? firstBrace 
-          : firstBracket;
-        jsonText = jsonText.substring(startIndex);
-        
-        // Trouver la fin du JSON (dernière accolade ou crochet correspondant)
-        let braceCount = 0;
-        let bracketCount = 0;
-        let endIndex = -1;
-        
-        for (let i = 0; i < jsonText.length; i++) {
-          if (jsonText[i] === '{') braceCount++;
-          if (jsonText[i] === '}') braceCount--;
-          if (jsonText[i] === '[') bracketCount++;
-          if (jsonText[i] === ']') bracketCount--;
-          
-          if (braceCount === 0 && bracketCount === 0 && (jsonText[i] === '}' || jsonText[i] === ']')) {
-            endIndex = i + 1;
-            break;
-          }
-        }
-        
-        if (endIndex !== -1) {
-          jsonText = jsonText.substring(0, endIndex);
-        }
-      }
-      
-      data = JSON.parse(jsonText);
-    } catch (parseError: any) {
-      console.error('Erreur parsing JSON:', {
-        error: parseError.message,
-        url,
-        status: response.status,
-        contentType,
-        responseLength: responseText.length,
-        preview: responseText.substring(0, 1000)
-      });
-      
-      // Si c'est une erreur de parsing JSON, essayer de récupérer plus d'infos
-      const errorMessage = parseError.message || 'Erreur lors du parsing de la réponse du serveur';
-      
-      throw {
-        success: false,
-        message: errorMessage.includes('JSON') 
-          ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
-          : errorMessage,
-        error: {
-          code: 'JSON_PARSE_ERROR',
-          details: `Impossible de parser la réponse JSON: ${errorMessage}`,
-        },
-        timestamp: new Date().toISOString(),
-      } as ApiError;
     }
     
     if (!response.ok) {

@@ -139,21 +139,28 @@ export const contentsService = {
     await apiClient.post(CONTENTS.RATE(id), data);
   },
   
-  // Télécharger le fichier d'un contenu
+  // Télécharger le fichier d'un contenu (lecture/stream)
+  // Essaie d'abord GET /contents/:id/download, puis GET /contents/:id/file (même chemin que l'upload)
   async download(id: number): Promise<Blob> {
     const token = apiClient.getAccessTokenPublic();
-    const response = await fetch(`${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error('Erreur lors du téléchargement');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const tryUrl = (url: string) =>
+      fetch(url, { method: 'GET', headers }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      });
+
+    try {
+      return await tryUrl(`${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}`);
+    } catch {
+      try {
+        return await tryUrl(`${API_CONFIG.BASE_URL}${CONTENTS.FILE(id)}`);
+      } catch (e) {
+        throw new Error('Fichier non disponible. Vérifiez que le fichier a bien été envoyé à la création du contenu.');
+      }
     }
-    
-    return response.blob();
   },
   
   // Obtenir l'URL de téléchargement (pour utilisation directe)

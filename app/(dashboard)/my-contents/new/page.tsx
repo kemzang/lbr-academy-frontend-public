@@ -178,12 +178,15 @@ export default function NewContentPage() {
         }
       }
 
-      // Upload le fichier si présent
+      // Upload le fichier si présent (vidéo, audio, PDF, etc.)
       if (contentFile) {
         try {
           await contentsService.uploadFile(content.id, contentFile);
-        } catch (err) {
-          console.error('Erreur upload fichier:', err);
+          toast.success('Fichier envoyé avec succès');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Erreur lors de l\'envoi du fichier';
+          toast.error(msg);
+          toast.info('Le contenu a été créé. Vous pouvez ajouter le fichier plus tard depuis « Modifier ».');
         }
       }
 

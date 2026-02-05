@@ -22,8 +22,11 @@ export function useNotifications() {
         const response = await notificationsService.getCount();
         setUnreadCount(response.unreadCount || 0);
       } catch (err) {
-        console.error('Erreur chargement compteur notifications:', err);
         setUnreadCount(0);
+        const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message?: unknown }).message) : null;
+        if (msg && msg !== '[object Object]') {
+          console.warn('Compteur notifications:', msg);
+        }
       } finally {
         setIsLoading(false);
       }

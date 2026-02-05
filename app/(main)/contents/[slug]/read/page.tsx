@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -61,12 +61,87 @@ export default function ContentReadPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [mediaBlobUrl, setMediaBlobUrl] = useState<string | null>(null);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const mediaUrlRef = useRef<string | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (slug) {
       loadContent();
     }
   }, [slug]);
+
+  // Charger le fichier média (vidéo/audio) via l'API pour avoir une URL lisible par le lecteur
+  useEffect(() => {
+    if (!content?.id) return;
+    const isVideoOrAudio = content.type === 'VIDEO' || content.type === 'AUDIO';
+    if (!isVideoOrAudio) return;
+
+    setMediaLoading(true);
+    setMediaBlobUrl(null);
+    if (mediaUrlRef.current) {
+      URL.revokeObjectURL(mediaUrlRef.current);
+      mediaUrlRef.current = null;
+    }
+
+    contentsService
+      .download(content.id)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        mediaUrlRef.current = url;
+        setMediaBlobUrl(url);
+      })
+      .catch(() => {
+        setMediaBlobUrl(null);
+      })
+      .finally(() => setMediaLoading(false));
+
+    return () => {
+      if (mediaUrlRef.current) {
+        URL.revokeObjectURL(mediaUrlRef.current);
+        mediaUrlRef.current = null;
+      }
+      setMediaBlobUrl(null);
+    };
+  }, [content?.id, content?.type]);
+
+  // Charger le PDF pour les livres/articles sans body
+  useEffect(() => {
+    if (!content?.id) return;
+    const isDoc = content.type === 'BOOK' || content.type === 'ARTICLE' || content.type === 'FORMATION';
+    const needsPdf = isDoc && !content.body;
+    if (!needsPdf) return;
+
+    setPdfLoading(true);
+    setPdfBlobUrl(null);
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
+    }
+
+    contentsService
+      .download(content.id)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        pdfUrlRef.current = url;
+        setPdfBlobUrl(url);
+      })
+      .catch(() => {
+        setPdfBlobUrl(null);
+      })
+      .finally(() => setPdfLoading(false));
+
+    return () => {
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+        pdfUrlRef.current = null;
+      }
+      setPdfBlobUrl(null);
+    };
+  }, [content?.id, content?.type, content?.body]);
 
   const loadContent = async () => {
     try {
@@ -306,21 +381,34 @@ export default function ContentReadPage() {
               </div>
             )}
 
-            {/* Audio/Video Player */}
-            {content.type === 'VIDEO' && content.fileUrl && (
+            {/* Video Player - chargé via l'API (téléchargement) pour respecter l'auth */}
+            {content.type === 'VIDEO' && (
               <div className="mb-8">
-                <video 
-                  controls 
-                  src={content.fileUrl} 
-                  className="w-full rounded-lg shadow-lg"
-                  poster={content.coverUrl}
-                >
-                  Votre navigateur ne supporte pas la lecture vidéo.
-                </video>
+                {mediaLoading && (
+                  <div className="aspect-video w-full rounded-lg bg-muted flex items-center justify-center">
+                    <p className="text-muted-foreground">Chargement de la vidéo...</p>
+                  </div>
+                )}
+                {!mediaLoading && mediaBlobUrl && (
+                  <video 
+                    controls 
+                    src={mediaBlobUrl} 
+                    className="w-full rounded-lg shadow-lg"
+                    poster={content.coverUrl}
+                  >
+                    Votre navigateur ne supporte pas la lecture vidéo.
+                  </video>
+                )}
+                {!mediaLoading && !mediaBlobUrl && (
+                  <div className="aspect-video w-full rounded-lg bg-muted flex items-center justify-center">
+                    <p className="text-muted-foreground">Vidéo non disponible. Téléchargez le fichier ci-dessous.</p>
+                  </div>
+                )}
               </div>
             )}
 
-            {content.type === 'AUDIO' && content.fileUrl && (
+            {/* Audio Player */}
+            {content.type === 'AUDIO' && (
               <div className="mb-8">
                 <div className="bg-muted/50 rounded-lg p-6">
                   {content.coverUrl && (
@@ -332,23 +420,54 @@ export default function ContentReadPage() {
                       />
                     </div>
                   )}
-                  <audio 
-                    controls 
-                    src={content.fileUrl} 
-                    className="w-full"
-                  >
-                    Votre navigateur ne supporte pas la lecture audio.
-                  </audio>
+                  {mediaLoading && (
+                    <p className="text-muted-foreground text-center py-4">Chargement de l’audio...</p>
+                  )}
+                  {!mediaLoading && mediaBlobUrl && (
+                    <audio controls src={mediaBlobUrl} className="w-full">
+                      Votre navigateur ne supporte pas la lecture audio.
+                    </audio>
+                  )}
+                  {!mediaLoading && !mediaBlobUrl && (
+                    <p className="text-muted-foreground text-center py-4">Audio non disponible. Utilisez le bouton Télécharger.</p>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Body Content */}
+            {/* Body Content (HTML) ou PDF pour livres/articles */}
             {content.body ? (
               <div 
                 className="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline"
                 dangerouslySetInnerHTML={{ __html: content.body }}
               />
+            ) : (content.type === 'BOOK' || content.type === 'ARTICLE' || content.type === 'FORMATION') ? (
+              <>
+                {pdfLoading && (
+                  <div className="flex items-center justify-center py-16">
+                    <p className="text-muted-foreground">Chargement du document...</p>
+                  </div>
+                )}
+                {!pdfLoading && pdfBlobUrl && (
+                  <div className="mb-8 rounded-lg overflow-hidden border bg-muted/30">
+                    <iframe
+                      title={`Lire ${content.title}`}
+                      src={pdfBlobUrl}
+                      className="w-full min-h-[70vh] aspect-[3/4] max-h-[80vh]"
+                    />
+                  </div>
+                )}
+                {!pdfLoading && !pdfBlobUrl && (
+                  <div className="text-center py-16 border rounded-lg bg-muted/30">
+                    <FileText className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-4">Ce contenu est disponible en téléchargement.</p>
+                    <Button onClick={handleDownload}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Télécharger pour lire
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : content.type !== 'VIDEO' && content.type !== 'AUDIO' ? (
               <div className="text-center py-16">
                 <FileText className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
@@ -356,8 +475,8 @@ export default function ContentReadPage() {
               </div>
             ) : null}
 
-            {/* File Download Section */}
-            {content.fileUrl && (
+            {/* File Download Section - proposer le téléchargement pour tout contenu avec fichier */}
+            {(content.fileUrl || content.type === 'VIDEO' || content.type === 'AUDIO' || content.type === 'BOOK' || content.type === 'ARTICLE' || content.type === 'FORMATION') && (
               <div className="mt-8 pt-8 border-t">
                 <div className="flex items-center justify-between">
                   <div>

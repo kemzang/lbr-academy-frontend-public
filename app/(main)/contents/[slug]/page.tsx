@@ -91,8 +91,7 @@ export default function ContentDetailPage() {
       // Charger les commentaires
       const commentsData = await commentsService.getByContent(data.id, 0, 20);
       setComments(commentsData.content);
-    } catch (err: unknown) {
-      console.error('Erreur chargement contenu:', err);
+    } catch {
       setError('Contenu introuvable ou une erreur est survenue.');
     } finally {
       setIsLoading(false);

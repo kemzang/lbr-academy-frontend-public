@@ -175,12 +175,12 @@ export function ContentCard({
     );
   }
 
-  // Default variant
+  // Default variant (carte compacte)
   return (
     <Link href={`/contents/${content.slug}`}>
       <Card className="group h-full overflow-hidden border-border/50 bg-card/50 hover:bg-card hover:border-primary/30 transition-all duration-300">
         {/* Image */}
-        <div className="relative aspect-[3/4] overflow-hidden">
+        <div className="relative aspect-[4/3] overflow-hidden">
           {content.coverUrl ? (
             <img 
               src={content.coverUrl} 
@@ -192,7 +192,7 @@ export function ContentCard({
               className="w-full h-full flex items-center justify-center"
               style={{ backgroundColor: typeInfo.color + '10' }}
             >
-              <TypeIcon className="h-16 w-16" style={{ color: typeInfo.color }} />
+              <TypeIcon className="h-10 w-10" style={{ color: typeInfo.color }} />
             </div>
           )}
           
@@ -201,7 +201,7 @@ export function ContentCard({
           
           {/* Type badge */}
           <div 
-            className="absolute top-3 left-3 px-2.5 py-1 rounded-md text-xs font-medium text-white"
+            className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-medium text-white"
             style={{ backgroundColor: typeInfo.color }}
           >
             {typeInfo.label}
@@ -212,17 +212,17 @@ export function ContentCard({
             size="icon"
             variant="ghost"
             className={cn(
-              'absolute top-3 right-3 h-8 w-8 rounded-full bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-all',
+              'absolute top-2 right-2 h-7 w-7 rounded-full bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-all',
               isFavorite && 'opacity-100'
             )}
             onClick={handleToggleFavorite}
             disabled={isLoading}
           >
-            <Heart className={cn('h-4 w-4', isFavorite && 'fill-red-500 text-red-500')} />
+            <Heart className={cn('h-3.5 w-3.5', isFavorite && 'fill-red-500 text-red-500')} />
           </Button>
           
           {/* Price */}
-          <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             {!content.isFree && (
               <Badge className="bg-primary text-background font-bold">
                 {formatPrice(content.price)}
@@ -236,29 +236,29 @@ export function ContentCard({
           </div>
         </div>
         
-        <CardContent className="p-4">
+        <CardContent className="p-3">
           {/* Title */}
-          <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors mb-2">
+          <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors mb-1.5">
             {content.title}
           </h3>
           
           {/* Author */}
           {showAuthor && content.author && (
-            <div className="flex items-center gap-2 mb-3">
-              <Avatar className="h-6 w-6">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Avatar className="h-5 w-5">
                 <AvatarImage src={content.author.profilePictureUrl || undefined} />
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className="text-[10px]">
                   {(content.author.fullName ?? content.author.username).charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm text-muted-foreground truncate">
+              <span className="text-xs text-muted-foreground truncate">
                 {content.author.fullName ?? content.author.username}
               </span>
             </div>
           )}
           
           {/* Stats */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <div className="flex items-center gap-3">
               {content.averageRating !== undefined && content.averageRating > 0 && (
                 <span className="flex items-center gap-1">
