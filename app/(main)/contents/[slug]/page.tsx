@@ -181,8 +181,10 @@ export default function ContentDetailPage() {
       setUserRating(rating);
       toast.success('Merci pour votre note !');
       loadContent();
-    } catch (err) {
-      toast.error('Erreur lors de la notation');
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string; error?: { details?: string } };
+      const message = apiErr?.message || apiErr?.error?.details || 'Erreur lors de la notation';
+      toast.error(message);
     }
   };
 

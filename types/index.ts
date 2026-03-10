@@ -260,6 +260,23 @@ export interface CreatePurchaseRequest {
 }
 
 // ==================== Subscription ====================
+/** Valeurs attendues par l'API pour le champ type d'un plan d'abonnement */
+export type SubscriptionPlanType = 'FREE' | 'STANDARD' | 'PREMIUM' | 'CREATOR' | 'COACH';
+
+/** DTO envoyé au backend pour créer/mettre à jour un plan (POST /api/subscriptions/plans) */
+export interface SubscriptionPlanRequest {
+  type: SubscriptionPlanType;
+  name: string;
+  description?: string;
+  price: number;
+  currency?: string;
+  durationDays: number;
+  accessPremiumContent?: boolean;
+  canPublishContent?: boolean;
+  canCreateFormations?: boolean;
+  prioritySupport?: boolean;
+}
+
 export interface SubscriptionPlan {
   id: number;
   name: string;
@@ -267,9 +284,14 @@ export interface SubscriptionPlan {
   price: number;
   currency: string;
   durationDays: number;
-  features: string[];
-  isActive: boolean;
-  isPopular: boolean;
+  type?: SubscriptionPlanType;
+  features?: string[];
+  isActive?: boolean;
+  isPopular?: boolean;
+  accessPremiumContent?: boolean;
+  canPublishContent?: boolean;
+  canCreateFormations?: boolean;
+  prioritySupport?: boolean;
 }
 
 export interface Subscription {

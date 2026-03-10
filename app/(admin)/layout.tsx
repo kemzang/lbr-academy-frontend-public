@@ -55,12 +55,14 @@ function AdminSidebar({ className }: { className?: string }) {
           pendingRoleUpgrades: stats.pendingRoleUpgrades || 0,
         });
       } catch (err) {
-        console.error('Erreur chargement badges:', err);
+        // Ignorer silencieusement les erreurs de chargement des badges
+        // La gestion de l'authentification est faite au niveau du layout
+        console.debug('Impossible de charger les badges:', err);
       }
     };
     loadBadges();
-    // Rafraîchir toutes les 30 secondes
-    const interval = setInterval(loadBadges, 30000);
+    // Rafraîchir toutes les 60 secondes (réduit la fréquence)
+    const interval = setInterval(loadBadges, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -125,27 +127,60 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, isLoading } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
+  const [hydrationDone, setHydrationDone] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    const t = setTimeout(() => setHydrationDone(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrationDone) return;
+    if (isLoading) return;
+    
+    // Vérifier si on a un token en localStorage
+    const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
+    
+    if (!isAuthenticated && !hasToken) {
+      // Pas de token du tout, rediriger vers login
       router.push('/login?redirect=' + encodeURIComponent(window.location.pathname));
       return;
     }
-
-    // Vérifier que l'utilisateur est admin
-    if (user?.role !== 'ADMIN') {
+    
+    if (isAuthenticated && user?.role !== 'ADMIN') {
+      // Connecté mais pas admin
       router.push('/dashboard');
-      return;
     }
+  }, [hydrationDone, isLoading, isAuthenticated, user?.role, router]);
 
-    setIsChecking(false);
-  }, [isAuthenticated, user, router]);
+  if (!hydrationDone || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
-  // Afficher un loader pendant la vérification
-  if (isChecking || !isAuthenticated || user?.role !== 'ADMIN') {
+  // Vérifier si on a un token en localStorage
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
+  
+  if (!isAuthenticated && !hasToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated && user?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">

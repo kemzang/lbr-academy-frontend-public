@@ -74,7 +74,7 @@ export default function ContentReadPage() {
     }
   }, [slug]);
 
-  // Charger le fichier média (vidéo/audio) via l'API pour avoir une URL lisible par le lecteur
+  // Charger le fichier média (vidéo/audio) : fileUrl direct, puis download (blob), puis URL de stream
   useEffect(() => {
     if (!content?.id) return;
     const isVideoOrAudio = content.type === 'VIDEO' || content.type === 'AUDIO';
@@ -87,26 +87,42 @@ export default function ContentReadPage() {
       mediaUrlRef.current = null;
     }
 
+    const fileUrl = content.fileUrl?.trim();
+    const isDirectUrl = fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('//'));
+
+    if (isDirectUrl) {
+      setMediaBlobUrl(fileUrl!);
+      setMediaLoading(false);
+      return () => setMediaBlobUrl(null);
+    }
+
+    let cancelled = false;
     contentsService
       .download(content.id)
       .then((blob) => {
+        if (cancelled) return;
         const url = URL.createObjectURL(blob);
         mediaUrlRef.current = url;
         setMediaBlobUrl(url);
       })
       .catch(() => {
-        setMediaBlobUrl(null);
+        if (cancelled) return;
+        const streamUrl = contentsService.getStreamUrl(content.id);
+        setMediaBlobUrl(streamUrl);
       })
-      .finally(() => setMediaLoading(false));
+      .finally(() => {
+        if (!cancelled) setMediaLoading(false);
+      });
 
     return () => {
+      cancelled = true;
       if (mediaUrlRef.current) {
         URL.revokeObjectURL(mediaUrlRef.current);
         mediaUrlRef.current = null;
       }
       setMediaBlobUrl(null);
     };
-  }, [content?.id, content?.type]);
+  }, [content?.id, content?.type, content?.fileUrl]);
 
   // Charger le PDF pour les livres/articles sans body
   useEffect(() => {
@@ -215,7 +231,6 @@ export default function ContentReadPage() {
       toast.error('Contenu non disponible');
       return;
     }
-    
     try {
       const blob = await contentsService.download(content.id);
       const url = window.URL.createObjectURL(blob);
@@ -228,8 +243,12 @@ export default function ContentReadPage() {
       document.body.removeChild(a);
       toast.success('Téléchargement démarré');
     } catch (err) {
-      console.error('Erreur téléchargement:', err);
-      toast.error('Erreur lors du téléchargement');
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'FILE_NOT_AVAILABLE') {
+        toast.error('Fichier non disponible. Vérifiez qu’il a bien été envoyé à la création du contenu.');
+      } else {
+        toast.error('Erreur lors du téléchargement');
+      }
     }
   };
 

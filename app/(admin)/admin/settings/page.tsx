@@ -110,7 +110,8 @@ export default function AdminSettingsPage() {
         paymentMethods: settings.payment.paymentMethods.join(','),
       });
     } catch (err) {
-      console.error('Erreur chargement paramètres:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement paramètres:', msg);
       toast.error('Impossible de charger les paramètres');
     } finally {
       setIsLoading(false);

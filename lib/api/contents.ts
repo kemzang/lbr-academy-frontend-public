@@ -134,9 +134,9 @@ export const contentsService = {
     return response.data;
   },
   
-  // Noter un contenu
+  // Noter un contenu — le backend attend le paramètre "rating" en query (ex. POST /contents/:id/rate?rating=5)
   async rate(id: number, data: RateContentRequest): Promise<void> {
-    await apiClient.post(CONTENTS.RATE(id), data);
+    await apiClient.post(CONTENTS.RATE(id), undefined, false, { rating: data.rating });
   },
   
   // Télécharger le fichier d'un contenu (lecture/stream)
@@ -157,10 +157,20 @@ export const contentsService = {
     } catch {
       try {
         return await tryUrl(`${API_CONFIG.BASE_URL}${CONTENTS.FILE(id)}`);
-      } catch (e) {
-        throw new Error('Fichier non disponible. Vérifiez que le fichier a bien été envoyé à la création du contenu.');
+      } catch {
+        throw new Error('FILE_NOT_AVAILABLE');
       }
     }
+  },
+
+  /**
+   * URL pour lecture en stream (vidéo/audio) — à utiliser dans <video src> / <audio src>.
+   * Le backend doit accepter GET avec token en query ou en header (CORS autorisé).
+   */
+  getStreamUrl(id: number): string {
+    const token = apiClient.getAccessTokenPublic();
+    const base = `${API_CONFIG.BASE_URL}${CONTENTS.FILE(id)}`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
   },
   
   // Obtenir l'URL de téléchargement (pour utilisation directe)

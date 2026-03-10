@@ -49,8 +49,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { subscriptionsService } from '@/lib/api';
-import { SubscriptionPlan } from '@/types';
+import { SubscriptionPlan, SubscriptionPlanType } from '@/types';
 import { formatPrice } from '@/config/theme';
 import { toast } from 'sonner';
 
@@ -63,12 +70,25 @@ export default function AdminSubscriptionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const planTypes: { value: SubscriptionPlanType; label: string }[] = [
+    { value: 'FREE', label: 'Gratuit' },
+    { value: 'STANDARD', label: 'Standard' },
+    { value: 'PREMIUM', label: 'Premium' },
+    { value: 'CREATOR', label: 'Créateur' },
+    { value: 'COACH', label: 'Coach' },
+  ];
+
   const [formData, setFormData] = useState({
+    type: 'STANDARD' as SubscriptionPlanType,
     name: '',
     description: '',
     price: '',
-    currency: 'XAF',
+    currency: 'EUR',
     durationDays: '30',
+    accessPremiumContent: true,
+    canPublishContent: false,
+    canCreateFormations: false,
+    prioritySupport: false,
     features: '',
     isPopular: false,
   });
@@ -84,7 +104,8 @@ export default function AdminSubscriptionsPage() {
       const data = await subscriptionsService.getPlans();
       setPlans(data);
     } catch (err: any) {
-      console.error('Erreur chargement plans:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement plans:', msg);
       const errorMessage = err?.error?.code === 'JSON_PARSE_ERROR'
         ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
         : err?.message || 'Impossible de charger les plans.';
@@ -99,22 +120,32 @@ export default function AdminSubscriptionsPage() {
     if (plan) {
       setSelectedPlan(plan);
       setFormData({
+        type: (plan.type as SubscriptionPlanType) || 'STANDARD',
         name: plan.name,
-        description: plan.description,
+        description: plan.description ?? '',
         price: plan.price.toString(),
-        currency: plan.currency,
+        currency: plan.currency ?? 'EUR',
         durationDays: plan.durationDays.toString(),
+        accessPremiumContent: plan.accessPremiumContent ?? true,
+        canPublishContent: plan.canPublishContent ?? false,
+        canCreateFormations: plan.canCreateFormations ?? false,
+        prioritySupport: plan.prioritySupport ?? false,
         features: plan.features?.join('\n') || '',
-        isPopular: plan.isPopular,
+        isPopular: plan.isPopular ?? false,
       });
     } else {
       setSelectedPlan(null);
       setFormData({
+        type: 'STANDARD',
         name: '',
         description: '',
         price: '',
-        currency: 'XAF',
+        currency: 'EUR',
         durationDays: '30',
+        accessPremiumContent: true,
+        canPublishContent: false,
+        canCreateFormations: false,
+        prioritySupport: false,
         features: '',
         isPopular: false,
       });
@@ -123,20 +154,33 @@ export default function AdminSubscriptionsPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name.trim() || !formData.price) {
-      toast.error('Nom et prix requis');
+    if (!formData.name.trim()) {
+      toast.error('Le nom est requis');
+      return;
+    }
+    const price = parseFloat(formData.price);
+    const durationDays = parseInt(formData.durationDays, 10);
+    if (!formData.price || isNaN(price) || price <= 0) {
+      toast.error('Le prix doit être un nombre supérieur à 0');
+      return;
+    }
+    if (!formData.durationDays || isNaN(durationDays) || durationDays <= 0) {
+      toast.error('La durée doit être un entier supérieur à 0 (jours)');
       return;
     }
 
     try {
       const data = {
+        type: formData.type,
         name: formData.name.trim(),
-        description: formData.description.trim(),
-        price: parseFloat(formData.price),
+        description: formData.description.trim() || undefined,
+        price,
         currency: formData.currency,
-        durationDays: parseInt(formData.durationDays),
-        features: formData.features.split('\n').filter(f => f.trim()),
-        isPopular: formData.isPopular,
+        durationDays,
+        accessPremiumContent: formData.accessPremiumContent,
+        canPublishContent: formData.canPublishContent,
+        canCreateFormations: formData.canCreateFormations,
+        prioritySupport: formData.prioritySupport,
       };
 
       if (selectedPlan) {
@@ -303,12 +347,30 @@ export default function AdminSubscriptionsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
+              <Label htmlFor="type">Type de plan *</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as SubscriptionPlanType }))}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Choisir le type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {planTypes.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="name">Nom *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ex: Premium"
+                placeholder="Ex: Standard"
               />
             </div>
             <div className="space-y-2">
@@ -317,30 +379,82 @@ export default function AdminSubscriptionsPage() {
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Description du plan"
+                placeholder="Ex: Plan standard"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price">Prix *</Label>
+                <Label htmlFor="price">Prix * (&gt; 0)</Label>
                 <Input
                   id="price"
                   type="number"
                   min="0"
+                  step="0.01"
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="5000"
+                  placeholder="9.99"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="duration">Durée (jours)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="1"
-                  value={formData.durationDays}
-                  onChange={(e) => setFormData(prev => ({ ...prev, durationDays: e.target.value }))}
-                  placeholder="30"
+                <Label htmlFor="currency">Devise</Label>
+                <Select
+                  value={formData.currency}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value }))}
+                >
+                  <SelectTrigger id="currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="XAF">XAF</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="duration">Durée (jours) *</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                value={formData.durationDays}
+                onChange={(e) => setFormData(prev => ({ ...prev, durationDays: e.target.value }))}
+                placeholder="30"
+              />
+            </div>
+            <div className="space-y-3 border-t pt-4">
+              <Label>Options du plan</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="accessPremiumContent" className="font-normal">Accès contenu premium</Label>
+                <Switch
+                  id="accessPremiumContent"
+                  checked={formData.accessPremiumContent}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, accessPremiumContent: checked }))}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="canPublishContent" className="font-normal">Peut publier du contenu</Label>
+                <Switch
+                  id="canPublishContent"
+                  checked={formData.canPublishContent}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, canPublishContent: checked }))}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="canCreateFormations" className="font-normal">Peut créer des formations</Label>
+                <Switch
+                  id="canCreateFormations"
+                  checked={formData.canCreateFormations}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, canCreateFormations: checked }))}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="prioritySupport" className="font-normal">Support prioritaire</Label>
+                <Switch
+                  id="prioritySupport"
+                  checked={formData.prioritySupport}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, prioritySupport: checked }))}
                 />
               </div>
             </div>
@@ -351,7 +465,7 @@ export default function AdminSubscriptionsPage() {
                 value={formData.features}
                 onChange={(e) => setFormData(prev => ({ ...prev, features: e.target.value }))}
                 placeholder="Accès illimité&#10;Support prioritaire&#10;..."
-                rows={5}
+                rows={3}
               />
             </div>
             <div className="flex items-center justify-between">

@@ -103,7 +103,8 @@ export default function AdminUsersPage() {
       setUsers(data.content);
       setTotalElements(data.totalElements);
     } catch (err) {
-      console.error('Erreur chargement utilisateurs:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement utilisateurs:', msg);
       setError('Impossible de charger les utilisateurs.');
     } finally {
       setIsLoading(false);

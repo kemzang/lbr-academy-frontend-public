@@ -115,7 +115,8 @@ export default function AdminContentsPage() {
       setContents(data.content);
       setTotalElements(data.totalElements);
     } catch (err) {
-      console.error('Erreur chargement contenus:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement contenus:', msg);
       setError('Impossible de charger les contenus.');
     } finally {
       setIsLoading(false);

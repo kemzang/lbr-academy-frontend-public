@@ -90,14 +90,20 @@ export default function AdminRoleRequestsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const status = statusFilter === 'all' ? undefined : statusFilter as 'PENDING' | 'APPROVED' | 'REJECTED';
-      const data = await roleUpgradesService.getAll(currentPage, pageSize, status);
-      
+
+      let data: { content: RoleUpgradeRequest[]; totalElements: number };
+      if (statusFilter === 'PENDING') {
+        data = await roleUpgradesService.getPending(currentPage, pageSize);
+      } else {
+        const status = statusFilter === 'all' ? undefined : (statusFilter as 'PENDING' | 'APPROVED' | 'REJECTED');
+        data = await roleUpgradesService.getAll(currentPage, pageSize, status);
+      }
+
       setRequests(data.content);
       setTotalElements(data.totalElements);
     } catch (err) {
-      console.error('Erreur chargement demandes:', err);
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      console.error('Erreur chargement demandes:', message);
       setError('Impossible de charger les demandes.');
     } finally {
       setIsLoading(false);

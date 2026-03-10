@@ -88,7 +88,8 @@ export default function AdminCategoriesPage() {
       const data = await categoriesService.getAll();
       setCategories(data);
     } catch (err) {
-      console.error('Erreur chargement catégories:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement catégories:', msg);
       setError('Impossible de charger les catégories.');
     } finally {
       setIsLoading(false);

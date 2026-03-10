@@ -6,6 +6,7 @@ import { API_CONFIG } from '@/config/api';
 import { apiClient } from './client';
 import { 
   SubscriptionPlan, 
+  SubscriptionPlanRequest,
   Subscription, 
   CreateSubscriptionRequest, 
   PaginatedResponse 
@@ -13,11 +14,42 @@ import {
 
 const { SUBSCRIPTIONS } = API_CONFIG.ENDPOINTS;
 
+function normalizeSubscriptionHistory(raw: unknown, pageSize: number): PaginatedResponse<Subscription> {
+  const p = raw as Partial<PaginatedResponse<Subscription>> | null;
+  const content = Array.isArray(p?.content) ? p.content : [];
+  const totalElements = typeof p?.totalElements === 'number' ? p.totalElements : content.length;
+  const currentPage = typeof p?.currentPage === 'number' ? p.currentPage : 0;
+  const totalPages = typeof p?.totalPages === 'number' ? p.totalPages : Math.max(0, Math.ceil(totalElements / pageSize) - 1);
+  return {
+    content,
+    totalElements,
+    currentPage,
+    totalPages,
+    pageSize: typeof p?.pageSize === 'number' ? p.pageSize : pageSize,
+    first: p?.first ?? currentPage <= 0,
+    last: p?.last ?? currentPage >= totalPages,
+    hasNext: p?.hasNext ?? currentPage < totalPages,
+    hasPrevious: p?.hasPrevious ?? currentPage > 0,
+  };
+}
+
 export const subscriptionsService = {
-  // Plans disponibles
+  // Plans disponibles — GET /api/subscriptions/plans → data = tableau de plans (ou data.content)
   async getPlans(): Promise<SubscriptionPlan[]> {
-    const response = await apiClient.get<SubscriptionPlan[]>(SUBSCRIPTIONS.PLANS);
-    return response.data;
+    try {
+      const response = await apiClient.get<SubscriptionPlan[] | { content?: SubscriptionPlan[]; data?: SubscriptionPlan[] }>(SUBSCRIPTIONS.PLANS);
+      const raw = (response as { data?: unknown })?.data ?? response;
+      if (Array.isArray(raw)) return raw;
+      if (raw && typeof raw === 'object') {
+        const o = raw as Record<string, unknown>;
+        if (Array.isArray(o.content)) return o.content as SubscriptionPlan[];
+        if (Array.isArray(o.data)) return o.data as SubscriptionPlan[];
+        if (Array.isArray(o.items)) return o.items as SubscriptionPlan[];
+      }
+      return [];
+    } catch {
+      return [];
+    }
   },
   
   // S'abonner (avec objet)
@@ -65,10 +97,15 @@ export const subscriptionsService = {
     return this.getCurrent();
   },
   
-  // Historique
+  // Historique — GET /api/subscriptions/history?page=0&size=20 → data.content + pagination
   async getHistory(page = 0, size = 20): Promise<PaginatedResponse<Subscription>> {
-    const response = await apiClient.get<PaginatedResponse<Subscription>>(SUBSCRIPTIONS.HISTORY, { page, size });
-    return response.data;
+    try {
+      const response = await apiClient.get<PaginatedResponse<Subscription>>(SUBSCRIPTIONS.HISTORY, { page, size });
+      const raw = (response as { data?: PaginatedResponse<Subscription> })?.data ?? response;
+      return normalizeSubscriptionHistory(raw, size);
+    } catch {
+      return { content: [], totalElements: 0, currentPage: 0, totalPages: 0, pageSize: size, first: true, last: true, hasNext: false, hasPrevious: false };
+    }
   },
   
   // Vérifier si abonné
@@ -77,14 +114,14 @@ export const subscriptionsService = {
     return response.data.subscribed;
   },
   
-  // Créer un plan (Admin)
-  async createPlan(data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
+  // Créer un plan (Admin) — type, name, price, durationDays obligatoires côté API
+  async createPlan(data: SubscriptionPlanRequest): Promise<SubscriptionPlan> {
     const response = await apiClient.post<SubscriptionPlan>(SUBSCRIPTIONS.PLANS, data);
     return response.data;
   },
   
   // Modifier un plan (Admin)
-  async updatePlan(id: number, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
+  async updatePlan(id: number, data: SubscriptionPlanRequest): Promise<SubscriptionPlan> {
     const response = await apiClient.put<SubscriptionPlan>(`${SUBSCRIPTIONS.PLANS}/${id}`, data);
     return response.data;
   },

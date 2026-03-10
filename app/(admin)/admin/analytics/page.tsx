@@ -93,7 +93,8 @@ export default function AdminAnalyticsPage() {
       setUserDistribution(distributionData.distribution);
       setRevenueChart(revenueData.data);
     } catch (err) {
-      console.error('Erreur chargement analytics:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      console.error('Erreur chargement analytics:', msg);
       setError('Impossible de charger les analytics.');
     } finally {
       setIsLoading(false);

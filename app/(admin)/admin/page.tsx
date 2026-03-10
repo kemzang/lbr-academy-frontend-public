@@ -55,7 +55,11 @@ export default function AdminDashboardPage() {
       setStats(statsData);
       setRecentActivity(activityData);
     } catch (err) {
-      console.error('Erreur chargement stats:', err);
+      const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      
+      if (msg !== '{}' && msg !== '[object Object]') {
+        console.error('Erreur chargement stats:', msg);
+      }
       setError('Impossible de charger les statistiques.');
     } finally {
       setIsLoading(false);

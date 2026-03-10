@@ -58,8 +58,19 @@ export const useAuthStore = create<AuthState>()(
           } else {
             set({ user: null, isAuthenticated: false, isLoading: false });
           }
-        } catch {
-          set({ user: null, isAuthenticated: false, isLoading: false });
+        } catch (err) {
+          // Si on a un token mais que l'API échoue, garder l'état actuel
+          // Ne déconnecter que si c'est une vraie erreur d'authentification
+          const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : '');
+          
+          if (msg.includes('Token expiré') || msg.includes('invalide') || msg.includes('AUTH_TOKEN_EXPIRED')) {
+            // Token vraiment expiré, déconnecter
+            authService.logout();
+            set({ user: null, isAuthenticated: false, isLoading: false });
+          } else {
+            // Erreur réseau ou autre, garder l'état actuel
+            set((state) => ({ ...state, isLoading: false }));
+          }
         }
       },
     }),

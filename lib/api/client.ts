@@ -177,7 +177,27 @@ class ApiClient {
             timestamp: new Date().toISOString(),
           } as ApiError;
         }
+      } else {
+        // Le refresh a échoué, c'est une vraie expiration de token
+        this.clearTokens();
+        throw {
+          success: false,
+          message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
+          error: { code: 'AUTH_TOKEN_EXPIRED', details: 'Session expirée' },
+          timestamp: new Date().toISOString(),
+        } as ApiError;
       }
+    }
+    
+    // Si toujours 401 après refresh, c'est une erreur d'authentification
+    if (response.status === 401) {
+      this.clearTokens();
+      throw {
+        success: false,
+        message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
+        error: { code: 'AUTH_TOKEN_EXPIRED', details: 'Session expirée' },
+        timestamp: new Date().toISOString(),
+      } as ApiError;
     }
     
     // Vérifier le Content-Type et le corps de la réponse
@@ -240,13 +260,9 @@ class ApiClient {
         data = JSON.parse(jsonText);
       }
     } catch (parseError: unknown) {
-      // Pour les réponses 2xx sans Content-Type JSON, accepter corps vide ou {} / []
-      if (
-        response.ok &&
-        !contentType?.includes('application/json') &&
-        (trimmed === '' || trimmed === '{}' || trimmed === '[]')
-      ) {
-        data = trimmed === '' ? {} : trimmed === '[]' ? [] : {};
+      // Pour toute réponse 2xx avec corps invalide, ne pas faire échouer : traiter comme corps vide
+      if (response.ok) {
+        data = trimmed === '[]' ? [] : {};
       } else {
         const errMsg = parseError instanceof Error ? parseError.message : 'Erreur lors du parsing de la réponse du serveur';
         console.error('Erreur parsing JSON:', {
@@ -283,8 +299,8 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET', params });
   }
   
-  async post<T>(endpoint: string, body?: unknown, isFormData = false): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'POST', body, isFormData });
+  async post<T>(endpoint: string, body?: unknown, isFormData = false, params?: Record<string, string | number | boolean | undefined>): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'POST', body, isFormData, params });
   }
   
   async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
