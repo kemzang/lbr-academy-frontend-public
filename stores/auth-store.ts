@@ -11,6 +11,7 @@ interface AuthState {
   user: UserSummary | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  lastLoginTime: number | null;
   
   // Actions
   setUser: (user: UserSummary | null) => void;
@@ -23,10 +24,11 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      lastLoginTime: null,
       
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       
@@ -36,21 +38,40 @@ export const useAuthStore = create<AuthState>()(
       
       login: async (emailOrUsername, password) => {
         const response = await authService.login({ emailOrUsername, password });
-        set({ user: response.user, isAuthenticated: true });
+        const now = Date.now();
+        set({ 
+          user: response.user, 
+          isAuthenticated: true,
+          lastLoginTime: now
+        });
       },
       
       register: async (data) => {
         const response = await authService.register(data);
-        set({ user: response.user, isAuthenticated: true });
+        const now = Date.now();
+        set({ 
+          user: response.user, 
+          isAuthenticated: true,
+          lastLoginTime: now
+        });
       },
       
       logout: () => {
         authService.logout();
-        set({ user: null, isAuthenticated: false });
+        set({ user: null, isAuthenticated: false, lastLoginTime: null });
       },
       
       checkAuth: async () => {
         set({ isLoading: true });
+        
+        // Si on vient de se connecter (moins de 10 secondes), ne pas vérifier
+        const lastLogin = get().lastLoginTime;
+        if (lastLogin && Date.now() - lastLogin < 10000) {
+          console.log('Connexion récente (< 10s), skip checkAuth');
+          set({ isLoading: false });
+          return;
+        }
+        
         try {
           if (authService.isAuthenticated()) {
             const user = await authService.getMe();
@@ -65,10 +86,12 @@ export const useAuthStore = create<AuthState>()(
           
           if (msg.includes('Token expiré') || msg.includes('invalide') || msg.includes('AUTH_TOKEN_EXPIRED')) {
             // Token vraiment expiré, déconnecter
+            console.warn('Token expiré, déconnexion');
             authService.logout();
-            set({ user: null, isAuthenticated: false, isLoading: false });
+            set({ user: null, isAuthenticated: false, isLoading: false, lastLoginTime: null });
           } else {
             // Erreur réseau ou autre, garder l'état actuel
+            console.warn('Erreur checkAuth (non-auth):', msg);
             set((state) => ({ ...state, isLoading: false }));
           }
         }
@@ -76,7 +99,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'lbr-auth',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      partialize: (state) => ({ 
+        user: state.user, 
+        isAuthenticated: state.isAuthenticated,
+        lastLoginTime: state.lastLoginTime
+      }),
     }
   )
 );

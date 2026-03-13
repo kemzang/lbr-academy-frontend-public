@@ -4,7 +4,7 @@
 
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/stores/auth-store';
@@ -16,14 +16,15 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   const checkAuth = useAuthStore((s) => s.checkAuth);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    // Ne vérifier l'auth que si on n'est pas déjà authentifié
-    // ou au premier montage
-    if (!isAuthenticated) {
+    // Ne vérifier qu'une seule fois au montage initial
+    if (!hasChecked) {
       checkAuth();
+      setHasChecked(true);
     }
-  }, [checkAuth, isAuthenticated]);
+  }, [checkAuth, hasChecked]);
 
   return (
     <ThemeProvider

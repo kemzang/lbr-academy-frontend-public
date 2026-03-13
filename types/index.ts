@@ -49,15 +49,13 @@ export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
-  fullName: string;
-  phone?: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface AuthResponse {
-  accessToken: string;
+  token: string;
   refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
   user: UserSummary;
 }
 

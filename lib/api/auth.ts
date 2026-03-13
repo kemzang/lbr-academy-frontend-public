@@ -19,7 +19,7 @@ export const authService = {
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REGISTER, data);
     if (response.success && response.data) {
-      apiClient.saveTokens(response.data.accessToken, response.data.refreshToken);
+      apiClient.saveTokens(response.data.token, response.data.refreshToken);
       apiClient.saveUser(response.data.user);
     }
     return response.data;
@@ -27,9 +27,19 @@ export const authService = {
   
   // Connexion
   async login(data: LoginRequest): Promise<AuthResponse> {
+    console.log('🔐 Tentative de connexion avec:', { emailOrUsername: data.emailOrUsername });
     const response = await apiClient.post<AuthResponse>(AUTH.LOGIN, data);
+    console.log('✅ Réponse login complète:', {
+      success: response.success,
+      hasData: !!response.data,
+      data: response.data,
+      hasToken: !!(response.data?.token),
+      hasRefreshToken: !!(response.data?.refreshToken),
+      hasUser: !!(response.data?.user)
+    });
     if (response.success && response.data) {
-      apiClient.saveTokens(response.data.accessToken, response.data.refreshToken);
+      console.log('💾 Tentative de sauvegarde des tokens...');
+      apiClient.saveTokens(response.data.token, response.data.refreshToken);
       apiClient.saveUser(response.data.user);
     }
     return response.data;
@@ -56,7 +66,7 @@ export const authService = {
   async refreshToken(): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REFRESH);
     if (response.success && response.data) {
-      apiClient.saveTokens(response.data.accessToken, response.data.refreshToken);
+      apiClient.saveTokens(response.data.token, response.data.refreshToken);
     }
     return response.data;
   },

@@ -41,6 +41,15 @@ export default function AdminDashboardPage() {
     loadData();
   }, []);
 
+  // Debug: afficher l'état de l'authentification
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('lbr_access_token');
+      console.log('Admin Dashboard - Token présent:', !!token);
+      console.log('Admin Dashboard - Token preview:', token ? token.substring(0, 20) + '...' : 'none');
+    }
+  }, []);
+
   const loadData = async () => {
     try {
       setIsLoading(true);
@@ -56,6 +65,22 @@ export default function AdminDashboardPage() {
       setRecentActivity(activityData);
     } catch (err) {
       const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
+      
+      // Vérifier si c'est une erreur d'authentification
+      if (msg.includes('Token expiré') || msg.includes('invalide') || msg.includes('AUTH_TOKEN_EXPIRED') || msg.includes('Veuillez vous reconnecter')) {
+        console.warn('Session expirée, redirection vers login...');
+        setError('Votre session a expiré. Redirection...');
+        // Nettoyer les tokens et rediriger
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('lbr_access_token');
+          localStorage.removeItem('lbr_refresh_token');
+          localStorage.removeItem('lbr_user');
+          setTimeout(() => {
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+          }, 1000);
+        }
+        return;
+      }
       
       if (msg !== '{}' && msg !== '[object Object]') {
         console.error('Erreur chargement stats:', msg);
@@ -113,7 +138,19 @@ export default function AdminDashboardPage() {
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {error.includes('session a expiré') && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="ml-4"
+                onClick={() => window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)}
+              >
+                Se reconnecter
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

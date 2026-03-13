@@ -42,6 +42,10 @@ class ApiClient {
   // Sauvegarder les tokens
   public saveTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
+    console.log('💾 Sauvegarde des tokens:', {
+      accessToken: accessToken ? accessToken.substring(0, 20) + '...' : 'undefined',
+      refreshToken: refreshToken ? refreshToken.substring(0, 20) + '...' : 'undefined'
+    });
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
   }
@@ -85,9 +89,13 @@ class ApiClient {
   // Rafraîchir le token
   private async refreshAccessToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      console.warn('Pas de refresh token disponible');
+      return false;
+    }
     
     try {
+      console.log('Tentative de rafraîchissement du token...');
       const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`, {
         method: 'POST',
         headers: {
@@ -99,14 +107,17 @@ class ApiClient {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
-          this.saveTokens(data.data.accessToken, data.data.refreshToken);
+          console.log('Token rafraîchi avec succès');
+          this.saveTokens(data.data.token, data.data.refreshToken);
           return true;
         }
       }
       
+      console.warn('Échec du rafraîchissement du token:', response.status);
       this.clearTokens();
       return false;
-    } catch {
+    } catch (err) {
+      console.error('Erreur lors du rafraîchissement du token:', err);
       this.clearTokens();
       return false;
     }
@@ -118,6 +129,11 @@ class ApiClient {
     
     const url = this.buildUrl(endpoint, params);
     const accessToken = this.getAccessToken();
+    
+    console.log(`🌐 Requête ${method} ${endpoint}`, {
+      hasToken: !!accessToken,
+      tokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'none'
+    });
     
     const requestHeaders: Record<string, string> = {
       ...headers,
@@ -143,6 +159,7 @@ class ApiClient {
     let response: Response;
     try {
       response = await fetch(url, requestConfig);
+      console.log(`📡 Réponse ${method} ${endpoint}:`, response.status);
     } catch (networkErr) {
       const msg = networkErr instanceof Error ? networkErr.message : 'Erreur réseau';
       const isFailedFetch = msg === 'Failed to fetch' || msg.includes('NetworkError');
@@ -160,12 +177,28 @@ class ApiClient {
     if (response.status === 401 && accessToken) {
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
-        requestHeaders['Authorization'] = `Bearer ${this.getAccessToken()}`;
+        // Récupérer le nouveau token et reconstruire complètement les headers
+        const newAccessToken = this.getAccessToken();
+        const newRequestHeaders: Record<string, string> = {
+          ...headers,
+          'Authorization': `Bearer ${newAccessToken}`,
+        };
+        
+        if (!isFormData) {
+          newRequestHeaders['Content-Type'] = 'application/json';
+        }
+        
+        const newRequestConfig: RequestInit = {
+          method,
+          headers: newRequestHeaders,
+        };
+        
+        if (body) {
+          newRequestConfig.body = isFormData ? (body as FormData) : JSON.stringify(body);
+        }
+        
         try {
-          response = await fetch(url, {
-            ...requestConfig,
-            headers: requestHeaders,
-          });
+          response = await fetch(url, newRequestConfig);
         } catch (retryErr) {
           const retryMsg = retryErr instanceof Error ? retryErr.message : 'Erreur réseau';
           throw {
@@ -258,6 +291,7 @@ class ApiClient {
         }
 
         data = JSON.parse(jsonText);
+        console.log('📦 Données parsées:', data);
       }
     } catch (parseError: unknown) {
       // Pour toute réponse 2xx avec corps invalide, ne pas faire échouer : traiter comme corps vide
