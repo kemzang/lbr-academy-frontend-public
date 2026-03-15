@@ -87,6 +87,7 @@ class ApiClient {
   }
   
   // Rafraîchir le token
+  // IMPORTANT: Ne JAMAIS appeler clearTokens() ici - laisser l'appelant décider
   private async refreshAccessToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
@@ -114,11 +115,9 @@ class ApiClient {
       }
       
       console.warn('Échec du rafraîchissement du token:', response.status);
-      this.clearTokens();
       return false;
     } catch (err) {
       console.error('Erreur lors du rafraîchissement du token:', err);
-      this.clearTokens();
       return false;
     }
   }
@@ -173,6 +172,9 @@ class ApiClient {
       } as ApiError;
     }
 
+    // Déterminer si c'est un endpoint d'authentification critique
+    const isAuthEndpoint = endpoint.startsWith('/auth/');
+
     // Si 401, essayer de rafraîchir le token
     if (response.status === 401 && accessToken) {
       const refreshed = await this.refreshAccessToken();
@@ -211,8 +213,11 @@ class ApiClient {
           } as ApiError;
         }
       } else {
-        // Le refresh a échoué, c'est une vraie expiration de token
-        this.clearTokens();
+        // Le refresh a échoué
+        // SEULEMENT clear les tokens si c'est un endpoint auth (comme /auth/me)
+        if (isAuthEndpoint) {
+          this.clearTokens();
+        }
         throw {
           success: false,
           message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
@@ -222,13 +227,16 @@ class ApiClient {
       }
     }
     
-    // Si toujours 401 après refresh, c'est une erreur d'authentification
+    // Si toujours 401 après refresh
     if (response.status === 401) {
-      this.clearTokens();
+      // SEULEMENT clear les tokens si c'est un endpoint auth critique
+      if (isAuthEndpoint) {
+        this.clearTokens();
+      }
       throw {
         success: false,
-        message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
-        error: { code: 'AUTH_TOKEN_EXPIRED', details: 'Session expirée' },
+        message: 'Non autorisé',
+        error: { code: 'UNAUTHORIZED', details: 'Accès refusé pour cette ressource' },
         timestamp: new Date().toISOString(),
       } as ApiError;
     }

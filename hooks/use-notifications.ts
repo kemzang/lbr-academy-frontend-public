@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 export function useNotifications() {
   const { isAuthenticated, lastLoginTime } = useAuthStore();
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -18,37 +18,38 @@ export function useNotifications() {
     }
 
     const loadCount = async () => {
+      // Vérifier que le token existe AVANT de faire l'appel
+      const token = typeof window !== 'undefined' ? localStorage.getItem('lbr_access_token') : null;
+      if (!token) {
+        setUnreadCount(0);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const response = await notificationsService.getCount();
         setUnreadCount(response.unreadCount || 0);
-      } catch (err) {
+      } catch {
+        // Ignorer TOUTES les erreurs silencieusement
+        // Ne JAMAIS déclencher de déconnexion depuis les notifications
         setUnreadCount(0);
-        const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message?: unknown }).message) : null;
-        if (msg && msg !== '[object Object]' && !msg?.includes('Token expiré')) {
-          console.warn('Compteur notifications:', msg);
-        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Si on vient de se connecter (moins de 15 secondes), attendre avant de charger
+    // Si on vient de se connecter (moins de 10 secondes), attendre
     const timeSinceLogin = lastLoginTime ? Date.now() - lastLoginTime : Infinity;
-    if (timeSinceLogin < 15000) {
-      console.log('Connexion récente, attente avant de charger les notifications...');
+    if (timeSinceLogin < 10000) {
       setIsLoading(false);
-      // Attendre avant de charger
-      const timeout = setTimeout(() => {
-        loadCount();
-      }, 15000 - timeSinceLogin);
+      const timeout = setTimeout(loadCount, 10000 - timeSinceLogin);
       return () => clearTimeout(timeout);
     }
 
     loadCount();
 
-    // Rafraîchir toutes les 60 secondes (réduit la fréquence)
+    // Rafraîchir toutes les 60 secondes
     const interval = setInterval(loadCount, 60000);
-
     return () => clearInterval(interval);
   }, [isAuthenticated, lastLoginTime]);
 

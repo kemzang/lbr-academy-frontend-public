@@ -68,17 +68,8 @@ export default function AdminDashboardPage() {
       
       // Vérifier si c'est une erreur d'authentification
       if (msg.includes('Token expiré') || msg.includes('invalide') || msg.includes('AUTH_TOKEN_EXPIRED') || msg.includes('Veuillez vous reconnecter')) {
-        console.warn('Session expirée, redirection vers login...');
-        setError('Votre session a expiré. Redirection...');
-        // Nettoyer les tokens et rediriger
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('lbr_access_token');
-          localStorage.removeItem('lbr_refresh_token');
-          localStorage.removeItem('lbr_user');
-          setTimeout(() => {
-            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
-          }, 1000);
-        }
+        console.warn('Session expirée détectée dans admin dashboard');
+        setError('Votre session a expiré. Veuillez vous reconnecter.');
         return;
       }
       

@@ -127,35 +127,42 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [hydrationDone, setHydrationDone] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setHydrationDone(true), 80);
-    return () => clearTimeout(t);
+    // Attendre que le composant soit monté
+    setIsReady(true);
   }, []);
 
   useEffect(() => {
-    if (!hydrationDone) return;
-    if (isLoading) return;
-    
-    // Vérifier si on a un token en localStorage
+    if (!isReady) return;
+
+    console.log('🔍 Admin Layout - Vérification:', {
+      isAuthenticated,
+      hasUser: !!user,
+      userRole: user?.role
+    });
+
+    // Vérifier le localStorage directement
     const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
     
-    if (!isAuthenticated && !hasToken) {
-      // Pas de token du tout, rediriger vers login
+    if (!hasToken) {
+      console.log('❌ Pas de token, redirection login');
       router.push('/login?redirect=' + encodeURIComponent(window.location.pathname));
       return;
     }
-    
-    if (isAuthenticated && user?.role !== 'ADMIN') {
-      // Connecté mais pas admin
+
+    // Si on a un user et qu'il n'est pas admin
+    if (user && user.role !== 'ADMIN') {
+      console.log('❌ Pas admin, redirection dashboard');
       router.push('/dashboard');
     }
-  }, [hydrationDone, isLoading, isAuthenticated, user?.role, router]);
+  }, [isReady, isAuthenticated, user, router]);
 
-  if (!hydrationDone || isLoading) {
+  // Pendant le chargement initial
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -166,29 +173,15 @@ export default function AdminLayout({
     );
   }
 
-  // Vérifier si on a un token en localStorage
+  // Vérifier le token
   const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
-  
-  if (!isAuthenticated && !hasToken) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-        </div>
-      </div>
-    );
+  if (!hasToken) {
+    return null;
   }
 
-  if (isAuthenticated && user?.role !== 'ADMIN') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-        </div>
-      </div>
-    );
+  // Si on a un user et qu'il n'est pas admin
+  if (user && user.role !== 'ADMIN') {
+    return null;
   }
 
   return (

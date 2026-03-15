@@ -45,12 +45,9 @@ export const authService = {
     return response.data;
   },
   
-  // Déconnexion
+  // Déconnexion - ne fait QUE nettoyer les tokens, pas de redirection
   logout(): void {
     apiClient.clearTokens();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
   },
   
   // Obtenir le profil actuel
