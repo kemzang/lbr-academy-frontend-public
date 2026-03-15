@@ -38,7 +38,11 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    // Attendre un court instant pour que le token soit bien propagé après login
+    const timer = setTimeout(() => {
+      loadData();
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Debug: afficher l'état de l'authentification
@@ -46,11 +50,10 @@ export default function AdminDashboardPage() {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('lbr_access_token');
       console.log('Admin Dashboard - Token présent:', !!token);
-      console.log('Admin Dashboard - Token preview:', token ? token.substring(0, 20) + '...' : 'none');
     }
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (retryCount = 0) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -66,10 +69,10 @@ export default function AdminDashboardPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : (err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Erreur inconnue');
       
-      // Vérifier si c'est une erreur d'authentification
-      if (msg.includes('Token expiré') || msg.includes('invalide') || msg.includes('AUTH_TOKEN_EXPIRED') || msg.includes('Veuillez vous reconnecter')) {
-        console.warn('Session expirée détectée dans admin dashboard');
-        setError('Votre session a expiré. Veuillez vous reconnecter.');
+      // Si "Non autorisé" et qu'on n'a pas encore retry, attendre et réessayer
+      if ((msg.includes('Non autorisé') || msg.includes('UNAUTHORIZED')) && retryCount < 2) {
+        console.log(`⏳ Retry chargement stats (${retryCount + 1}/2)...`);
+        setTimeout(() => loadData(retryCount + 1), 2000);
         return;
       }
       

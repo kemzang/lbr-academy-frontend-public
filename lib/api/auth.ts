@@ -14,35 +14,56 @@ import {
 
 const { AUTH } = API_CONFIG.ENDPOINTS;
 
+// Extraire les tokens depuis n'importe quelle structure de réponse
+function extractAuthData(response: unknown): { token?: string; refreshToken?: string; user?: AuthResponse['user'] } {
+  const r = response as Record<string, unknown>;
+  
+  // Niveau 1: directement dans la réponse
+  // Niveau 2: dans response.data
+  const data = (r.data || r) as Record<string, unknown>;
+  
+  const token = (data.token || data.accessToken || r.token || r.accessToken) as string | undefined;
+  const refreshToken = (data.refreshToken || r.refreshToken) as string | undefined;
+  const user = (data.user || r.user) as AuthResponse['user'] | undefined;
+  
+  return { token, refreshToken, user };
+}
+
 export const authService = {
   // Inscription
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REGISTER, data);
-    if (response.success && response.data) {
-      apiClient.saveTokens(response.data.token, response.data.refreshToken);
-      apiClient.saveUser(response.data.user);
+    const { token, refreshToken, user } = extractAuthData(response);
+    
+    if (token && refreshToken) {
+      apiClient.saveTokens(token, refreshToken);
+      if (user) apiClient.saveUser(user);
     }
-    return response.data;
+    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
   // Connexion
   async login(data: LoginRequest): Promise<AuthResponse> {
-    console.log('🔐 Tentative de connexion avec:', { emailOrUsername: data.emailOrUsername });
     const response = await apiClient.post<AuthResponse>(AUTH.LOGIN, data);
-    console.log('✅ Réponse login complète:', {
-      success: response.success,
-      hasData: !!response.data,
-      data: response.data,
-      hasToken: !!(response.data?.token),
-      hasRefreshToken: !!(response.data?.refreshToken),
-      hasUser: !!(response.data?.user)
+    
+    console.log('🔍 LOGIN RÉPONSE BRUTE:', JSON.stringify(response).substring(0, 500));
+    
+    const { token, refreshToken, user } = extractAuthData(response);
+    
+    console.log('🔍 LOGIN TOKENS EXTRAITS:', {
+      token: token ? token.substring(0, 30) + '...' : 'MANQUANT',
+      refreshToken: refreshToken ? refreshToken.substring(0, 30) + '...' : 'MANQUANT',
+      hasUser: !!user,
     });
-    if (response.success && response.data) {
-      console.log('💾 Tentative de sauvegarde des tokens...');
-      apiClient.saveTokens(response.data.token, response.data.refreshToken);
-      apiClient.saveUser(response.data.user);
+    
+    if (token && refreshToken) {
+      apiClient.saveTokens(token, refreshToken);
+      if (user) apiClient.saveUser(user);
+    } else {
+      console.error('❌ Login: token ou refreshToken manquant');
     }
-    return response.data;
+    
+    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
   // Déconnexion - ne fait QUE nettoyer les tokens, pas de redirection
@@ -62,10 +83,11 @@ export const authService = {
   // Rafraîchir le token
   async refreshToken(): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REFRESH);
-    if (response.success && response.data) {
-      apiClient.saveTokens(response.data.token, response.data.refreshToken);
+    const { token, refreshToken, user } = extractAuthData(response);
+    if (token && refreshToken) {
+      apiClient.saveTokens(token, refreshToken);
     }
-    return response.data;
+    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
   // Mot de passe oublié
@@ -88,10 +110,14 @@ export const authService = {
     await apiClient.get(AUTH.VERIFY_EMAIL, { token });
   },
   
-  // Vérifier si connecté
+  // Vérifier si connecté - avec validation du token
   isAuthenticated(): boolean {
     if (typeof window === 'undefined') return false;
-    return !!localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
+    const token = localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
+    if (!token || token === 'undefined' || token === 'null' || token.split('.').length !== 3) {
+      return false;
+    }
+    return true;
   },
   
   // Récupérer l'utilisateur stocké

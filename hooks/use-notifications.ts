@@ -18,9 +18,9 @@ export function useNotifications() {
     }
 
     const loadCount = async () => {
-      // Vérifier que le token existe AVANT de faire l'appel
+      // Vérifier que le token existe ET est un vrai JWT AVANT de faire l'appel
       const token = typeof window !== 'undefined' ? localStorage.getItem('lbr_access_token') : null;
-      if (!token) {
+      if (!token || token === 'undefined' || token === 'null' || token.split('.').length !== 3) {
         setUnreadCount(0);
         setIsLoading(false);
         return;

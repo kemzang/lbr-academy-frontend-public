@@ -22,10 +22,20 @@ class ApiClient {
     this.baseUrl = API_CONFIG.BASE_URL;
   }
   
-  // Récupérer le token d'accès
+  // Récupérer le token d'accès - avec validation
   private getAccessToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
+    const token = localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
+    // Ne JAMAIS retourner un token invalide
+    if (!token || token === 'undefined' || token === 'null' || token.split('.').length !== 3) {
+      if (token) {
+        // Il y a une valeur mais elle est invalide → la supprimer
+        console.warn('⚠️ Token invalide trouvé dans localStorage, suppression:', token.substring(0, 30));
+        localStorage.removeItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
+      }
+      return null;
+    }
+    return token;
   }
   
   // Exposer publiquement pour les téléchargements
@@ -39,12 +49,29 @@ class ApiClient {
     return localStorage.getItem(API_CONFIG.STORAGE_KEYS.REFRESH_TOKEN);
   }
   
-  // Sauvegarder les tokens
+  // Sauvegarder les tokens - avec validation stricte
   public saveTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
+    
+    // VALIDATION: ne JAMAIS stocker undefined/null/vide
+    if (!accessToken || accessToken === 'undefined' || accessToken === 'null') {
+      console.error('❌ saveTokens: accessToken invalide, ignoré:', accessToken);
+      return;
+    }
+    if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
+      console.error('❌ saveTokens: refreshToken invalide, ignoré:', refreshToken);
+      return;
+    }
+    
+    // VALIDATION: un JWT doit contenir exactement 2 points
+    if (accessToken.split('.').length !== 3) {
+      console.error('❌ saveTokens: accessToken n\'est pas un JWT valide:', accessToken.substring(0, 50));
+      return;
+    }
+    
     console.log('💾 Sauvegarde des tokens:', {
-      accessToken: accessToken ? accessToken.substring(0, 20) + '...' : 'undefined',
-      refreshToken: refreshToken ? refreshToken.substring(0, 20) + '...' : 'undefined'
+      accessToken: accessToken.substring(0, 20) + '...',
+      refreshToken: refreshToken.substring(0, 20) + '...'
     });
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
@@ -107,10 +134,23 @@ class ApiClient {
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
+        console.log('🔄 Réponse refresh brute:', JSON.stringify(data).substring(0, 200));
+        
+        // Essayer plusieurs structures de réponse possibles
+        const responseData = data.data || data;
+        const newToken = responseData.token || responseData.accessToken;
+        const newRefreshToken = responseData.refreshToken;
+        
+        if (newToken && newRefreshToken) {
           console.log('Token rafraîchi avec succès');
-          this.saveTokens(data.data.token, data.data.refreshToken);
+          this.saveTokens(newToken, newRefreshToken);
           return true;
+        } else {
+          console.error('❌ Refresh: structure de réponse inattendue, token ou refreshToken manquant:', {
+            hasToken: !!newToken,
+            hasRefreshToken: !!newRefreshToken,
+            keys: Object.keys(responseData)
+          });
         }
       }
       
@@ -217,11 +257,18 @@ class ApiClient {
         // SEULEMENT clear les tokens si c'est un endpoint auth (comme /auth/me)
         if (isAuthEndpoint) {
           this.clearTokens();
+          throw {
+            success: false,
+            message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
+            error: { code: 'AUTH_TOKEN_EXPIRED', details: 'Session expirée' },
+            timestamp: new Date().toISOString(),
+          } as ApiError;
         }
+        // Pour les endpoints non-auth, juste signaler l'erreur sans toucher aux tokens
         throw {
           success: false,
-          message: 'Token expiré ou invalide. Veuillez vous reconnecter.',
-          error: { code: 'AUTH_TOKEN_EXPIRED', details: 'Session expirée' },
+          message: 'Accès non autorisé à cette ressource.',
+          error: { code: 'UNAUTHORIZED', details: 'Accès refusé' },
           timestamp: new Date().toISOString(),
         } as ApiError;
       }

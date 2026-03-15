@@ -145,11 +145,14 @@ export default function AdminLayout({
       userRole: user?.role
     });
 
-    // Vérifier le localStorage directement
-    const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
+    // Vérifier le localStorage directement - valider que c'est un vrai JWT
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('lbr_access_token') : null;
+    const hasToken = storedToken && storedToken !== 'undefined' && storedToken !== 'null' && storedToken.split('.').length === 3;
     
     if (!hasToken) {
-      console.log('❌ Pas de token, redirection login');
+      console.log('❌ Pas de token valide, redirection login');
+      // Nettoyer le token invalide s'il existe
+      if (storedToken) localStorage.removeItem('lbr_access_token');
       router.push('/login?redirect=' + encodeURIComponent(window.location.pathname));
       return;
     }
@@ -173,9 +176,10 @@ export default function AdminLayout({
     );
   }
 
-  // Vérifier le token
-  const hasToken = typeof window !== 'undefined' && localStorage.getItem('lbr_access_token');
-  if (!hasToken) {
+  // Vérifier le token - valider que c'est un vrai JWT
+  const storedTokenRender = typeof window !== 'undefined' ? localStorage.getItem('lbr_access_token') : null;
+  const hasTokenRender = storedTokenRender && storedTokenRender !== 'undefined' && storedTokenRender !== 'null' && storedTokenRender.split('.').length === 3;
+  if (!hasTokenRender) {
     return null;
   }
 
