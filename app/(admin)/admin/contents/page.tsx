@@ -315,9 +315,9 @@ export default function AdminContentsPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
-                        {content.coverImageUrl ? (
+                        {content.coverUrl ? (
                           <img 
-                            src={content.coverImageUrl} 
+                            src={content.coverUrl} 
                             alt="" 
                             className="w-full h-full object-cover"
                           />
@@ -369,12 +369,12 @@ export default function AdminContentsPage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <ShoppingCart className="h-3 w-3" />
-                        {content.purchaseCount || 0}
+                        {(content as unknown as Record<string, unknown>).purchaseCount as number || 0}
                       </span>
-                      {content.rating && (
+                      {content.averageRating > 0 && (
                         <span className="flex items-center gap-1">
                           <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                          {content.rating.toFixed(1)}
+                          {content.averageRating.toFixed(1)}
                         </span>
                       )}
                     </div>

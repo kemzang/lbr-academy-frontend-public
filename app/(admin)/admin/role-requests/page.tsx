@@ -400,31 +400,28 @@ export default function AdminRoleRequestsPage() {
                 </p>
               </div>
 
-              {selectedRequest.documents && selectedRequest.documents.length > 0 && (
+              {selectedRequest.documentUrl && (
                 <div>
-                  <Label className="text-muted-foreground">Documents joints</Label>
-                  <div className="mt-2 space-y-2">
-                    {selectedRequest.documents.map((doc, i) => (
-                      <a 
-                        key={i}
-                        href={doc}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-2 bg-muted rounded hover:bg-muted/80 transition-colors"
-                      >
-                        <FileText className="h-4 w-4" />
-                        <span className="text-sm">Document {i + 1}</span>
-                      </a>
-                    ))}
+                  <Label className="text-muted-foreground">Document joint</Label>
+                  <div className="mt-2">
+                    <a 
+                      href={selectedRequest.documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-muted rounded hover:bg-muted/80 transition-colors"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm">Voir le document</span>
+                    </a>
                   </div>
                 </div>
               )}
 
-              {selectedRequest.rejectionReason && (
+              {selectedRequest.rejectReason && (
                 <div>
                   <Label className="text-muted-foreground">Raison du rejet</Label>
                   <p className="mt-1 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-                    {selectedRequest.rejectionReason}
+                    {selectedRequest.rejectReason}
                   </p>
                 </div>
               )}

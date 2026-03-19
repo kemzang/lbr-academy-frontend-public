@@ -146,7 +146,7 @@ export default function AdminUsersPage() {
     if (!selectedUser) return;
 
     try {
-      if (selectedUser.enabled) {
+      if (selectedUser.isActive) {
         await adminService.suspendUser(selectedUser.id);
         toast.success(`${selectedUser.username} a été suspendu`);
       } else {
@@ -275,7 +275,7 @@ export default function AdminUsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {user.enabled ? (
+                    {user.isActive ? (
                       <Badge variant="outline" className="text-green-600 border-green-600">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Actif
@@ -315,9 +315,9 @@ export default function AdminUsersPage() {
                             setSelectedUser(user);
                             setSuspendDialogOpen(true);
                           }}
-                          className={user.enabled ? 'text-red-600' : 'text-green-600'}
+                          className={user.isActive ? 'text-red-600' : 'text-green-600'}
                         >
-                          {user.enabled ? (
+                          {user.isActive ? (
                             <>
                               <Ban className="h-4 w-4 mr-2" />
                               Suspendre
@@ -405,10 +405,10 @@ export default function AdminUsersPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {selectedUser?.enabled ? 'Suspendre l\'utilisateur ?' : 'Réactiver l\'utilisateur ?'}
+              {selectedUser?.isActive ? 'Suspendre l\'utilisateur ?' : 'Réactiver l\'utilisateur ?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedUser?.enabled 
+              {selectedUser?.isActive 
                 ? `${selectedUser?.username} ne pourra plus accéder à son compte.`
                 : `${selectedUser?.username} pourra à nouveau accéder à son compte.`
               }
@@ -418,9 +418,9 @@ export default function AdminUsersPage() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleSuspendUser}
-              className={selectedUser?.enabled ? 'bg-destructive text-destructive-foreground' : ''}
+              className={selectedUser?.isActive ? 'bg-destructive text-destructive-foreground' : ''}
             >
-              {selectedUser?.enabled ? 'Suspendre' : 'Réactiver'}
+              {selectedUser?.isActive ? 'Suspendre' : 'Réactiver'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
