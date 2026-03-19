@@ -134,17 +134,19 @@ export const contentsService = {
     return response.data;
   },
   
-  // Noter un contenu — le backend attend le paramètre "rating" en query (ex. POST /contents/:id/rate?rating=5)
+  // Noter un contenu — le backend attend un JSON body { rating: number }
   async rate(id: number, data: RateContentRequest): Promise<void> {
-    await apiClient.post(CONTENTS.RATE(id), undefined, false, { rating: data.rating });
+    await apiClient.post(CONTENTS.RATE(id), { rating: data.rating });
   },
   
-  // Télécharger le fichier d'un contenu (lecture/stream)
-  // Essaie d'abord GET /contents/:id/download, puis GET /contents/:id/file (même chemin que l'upload)
+  // Télécharger le fichier d'un contenu
   async download(id: number): Promise<Blob> {
     const token = apiClient.getAccessTokenPublic();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+    const base = API_CONFIG.BASE_URL.startsWith('http') ? API_CONFIG.BASE_URL : `${origin}${API_CONFIG.BASE_URL}`;
 
     const tryUrl = (url: string) =>
       fetch(url, { method: 'GET', headers }).then((r) => {
@@ -153,30 +155,29 @@ export const contentsService = {
       });
 
     try {
-      return await tryUrl(`${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}`);
+      return await tryUrl(`${base}${CONTENTS.DOWNLOAD(id)}`);
     } catch {
       try {
-        return await tryUrl(`${API_CONFIG.BASE_URL}${CONTENTS.FILE(id)}`);
+        return await tryUrl(`${base}${CONTENTS.FILE(id)}`);
       } catch {
         throw new Error('FILE_NOT_AVAILABLE');
       }
     }
   },
 
-  /**
-   * URL pour lecture en stream (vidéo/audio) — à utiliser dans <video src> / <audio src>.
-   * Le backend doit accepter GET avec token en query ou en header (CORS autorisé).
-   */
   getStreamUrl(id: number): string {
     const token = apiClient.getAccessTokenPublic();
-    const base = `${API_CONFIG.BASE_URL}${CONTENTS.FILE(id)}`;
-    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const base = API_CONFIG.BASE_URL.startsWith('http') ? API_CONFIG.BASE_URL : `${origin}${API_CONFIG.BASE_URL}`;
+    const url = `${base}${CONTENTS.FILE(id)}`;
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
   },
   
-  // Obtenir l'URL de téléchargement (pour utilisation directe)
   getDownloadUrl(id: number): string {
     const token = apiClient.getAccessTokenPublic();
-    return `${API_CONFIG.BASE_URL}${CONTENTS.DOWNLOAD(id)}${token ? `?token=${token}` : ''}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const base = API_CONFIG.BASE_URL.startsWith('http') ? API_CONFIG.BASE_URL : `${origin}${API_CONFIG.BASE_URL}`;
+    return `${base}${CONTENTS.DOWNLOAD(id)}${token ? `?token=${token}` : ''}`;
   },
 };
 

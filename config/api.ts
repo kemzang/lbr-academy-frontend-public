@@ -3,22 +3,17 @@
 // ============================================
 
 export const API_CONFIG = {
-  // URL de base de l'API - Modifier selon l'environnement
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || '/api',
   
-  // Timeout des requêtes (en ms)
   TIMEOUT: 30000,
   
-  // Clés de stockage local
   STORAGE_KEYS: {
     ACCESS_TOKEN: 'lbr_access_token',
     REFRESH_TOKEN: 'lbr_refresh_token',
     USER: 'lbr_user',
   },
   
-  // Endpoints
   ENDPOINTS: {
-    // Auth
     AUTH: {
       REGISTER: '/auth/register',
       LOGIN: '/auth/login',
@@ -28,9 +23,9 @@ export const API_CONFIG = {
       RESET_PASSWORD: '/auth/password/reset',
       CHANGE_PASSWORD: '/auth/password/change',
       VERIFY_EMAIL: '/auth/verify-email',
+      VERIFY_TOKEN: '/auth/verify-token',
     },
     
-    // Users
     USERS: {
       PROFILE: '/users/profile',
       PROFILE_PICTURE: '/users/profile/picture',
@@ -42,7 +37,6 @@ export const API_CONFIG = {
       SETTINGS_PRIVACY: '/users/settings/privacy',
     },
     
-    // Contents
     CONTENTS: {
       BASE: '/contents',
       BY_ID: (id: number) => `/contents/${id}`,
@@ -59,10 +53,10 @@ export const API_CONFIG = {
       SUBMIT: (id: number) => `/contents/${id}/submit`,
       MY_CONTENTS: '/contents/my',
       RATE: (id: number) => `/contents/${id}/rate`,
+      PURCHASE: (id: number) => `/contents/${id}/purchase`,
       DOWNLOAD: (id: number) => `/contents/${id}/download`,
     },
     
-    // Categories
     CATEGORIES: {
       BASE: '/categories',
       TREE: '/categories/tree',
@@ -71,34 +65,35 @@ export const API_CONFIG = {
       TOGGLE: (id: number) => `/categories/${id}/toggle`,
     },
     
-    // Purchases
     PURCHASES: {
       BASE: '/purchases',
       COMPLETE: (id: number) => `/purchases/${id}/complete`,
       CHECK: (contentId: number) => `/purchases/check/${contentId}`,
     },
     
-    // Subscriptions
     SUBSCRIPTIONS: {
       PLANS: '/subscriptions/plans',
       BASE: '/subscriptions',
+      BY_PLAN: (planId: number) => `/subscriptions/${planId}`,
       ACTIVATE: (id: number) => `/subscriptions/${id}/activate`,
       CANCEL: (id: number) => `/subscriptions/${id}/cancel`,
       CURRENT: '/subscriptions/current',
+      CURRENT_CANCEL: '/subscriptions/current/cancel',
       HISTORY: '/subscriptions/history',
       CHECK: '/subscriptions/check',
+      PLAN_BY_ID: (planId: number) => `/subscriptions/plans/${planId}`,
+      PLAN_TOGGLE: (planId: number) => `/subscriptions/plans/${planId}/toggle`,
     },
     
-    // Comments
     COMMENTS: {
       BY_CONTENT: (contentId: number) => `/comments/content/${contentId}`,
       BY_ID: (id: number) => `/comments/${id}`,
       LIKE: (id: number) => `/comments/${id}/like`,
       HIDE: (id: number) => `/comments/${id}/hide`,
+      SHOW: (id: number) => `/comments/${id}/show`,
       HIDDEN: '/comments/hidden',
     },
     
-    // Follows
     FOLLOWS: {
       BASE: (userId: number) => `/follows/${userId}`,
       CHECK: (userId: number) => `/follows/check/${userId}`,
@@ -109,7 +104,6 @@ export const API_CONFIG = {
       USER_FOLLOWING: (userId: number) => `/follows/${userId}/following`,
     },
     
-    // Favorites
     FAVORITES: {
       BASE: '/favorites',
       BY_CONTENT: (contentId: number) => `/favorites/${contentId}`,
@@ -119,7 +113,6 @@ export const API_CONFIG = {
       COLLECTIONS: '/favorites/collections',
     },
     
-    // Notifications
     NOTIFICATIONS: {
       BASE: '/notifications',
       UNREAD: '/notifications/unread',
@@ -130,18 +123,16 @@ export const API_CONFIG = {
       DELETE_READ: '/notifications/read',
     },
     
-    // Role Upgrades
     ROLE_UPGRADES: {
       BASE: '/role-upgrades',
       MY: '/role-upgrades/my',
       PENDING: '/role-upgrades/pending',
       APPROVE: (id: number) => `/role-upgrades/${id}/approve`,
       REJECT: (id: number) => `/role-upgrades/${id}/reject`,
+      REVIEW: (id: number) => `/role-upgrades/${id}/review`,
     },
     
-    // Admin
     ADMIN: {
-      // Dashboard
       DASHBOARD: '/admin/dashboard',
       ANALYTICS: '/admin/dashboard/analytics',
       TOP_CONTENTS: '/admin/dashboard/top-contents',
@@ -149,22 +140,16 @@ export const API_CONFIG = {
       RECENT_ACTIVITY: '/admin/dashboard/recent-activity',
       USER_DISTRIBUTION: '/admin/dashboard/user-distribution',
       REVENUE_CHART: '/admin/dashboard/revenue-chart',
-      
-      // Users
       USERS: '/admin/users',
       CHANGE_ROLE: (id: number) => `/admin/users/${id}/role`,
       SUSPEND_USER: (id: number) => `/admin/users/${id}/suspend`,
       ACTIVATE_USER: (id: number) => `/admin/users/${id}/activate`,
-      
-      // Contents
       CONTENTS: '/admin/contents',
       PENDING_CONTENTS: '/admin/contents/pending',
       APPROVE_CONTENT: (id: number) => `/admin/contents/${id}/approve`,
       REJECT_CONTENT: (id: number) => `/admin/contents/${id}/reject`,
       FEATURE_CONTENT: (id: number) => `/admin/contents/${id}/feature`,
       DELETE_CONTENT: (id: number) => `/admin/contents/${id}`,
-      
-      // Settings
       SETTINGS: '/admin/settings',
       SETTINGS_GENERAL: '/admin/settings/general',
       SETTINGS_CONTENT: '/admin/settings/content',

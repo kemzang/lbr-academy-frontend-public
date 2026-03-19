@@ -15,58 +15,44 @@ import {
 const { AUTH } = API_CONFIG.ENDPOINTS;
 
 // Extraire les tokens depuis n'importe quelle structure de réponse
-function extractAuthData(response: unknown): { token?: string; refreshToken?: string; user?: AuthResponse['user'] } {
+function extractAuthData(response: unknown): { accessToken?: string; refreshToken?: string; user?: AuthResponse['user'] } {
   const r = response as Record<string, unknown>;
-  
-  // Niveau 1: directement dans la réponse
-  // Niveau 2: dans response.data
   const data = (r.data || r) as Record<string, unknown>;
   
-  const token = (data.token || data.accessToken || r.token || r.accessToken) as string | undefined;
+  const accessToken = (data.accessToken || data.token || r.accessToken || r.token) as string | undefined;
   const refreshToken = (data.refreshToken || r.refreshToken) as string | undefined;
   const user = (data.user || r.user) as AuthResponse['user'] | undefined;
   
-  return { token, refreshToken, user };
+  return { accessToken, refreshToken, user };
 }
 
 export const authService = {
   // Inscription
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REGISTER, data);
-    const { token, refreshToken, user } = extractAuthData(response);
+    const { accessToken, refreshToken, user } = extractAuthData(response);
     
-    if (token && refreshToken) {
-      apiClient.saveTokens(token, refreshToken);
+    if (accessToken && refreshToken) {
+      apiClient.saveTokens(accessToken, refreshToken);
       if (user) apiClient.saveUser(user);
     }
-    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
+    return { accessToken: accessToken || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
   // Connexion
   async login(data: LoginRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.LOGIN, data);
+    const { accessToken, refreshToken, user } = extractAuthData(response);
     
-    console.log('🔍 LOGIN RÉPONSE BRUTE:', JSON.stringify(response).substring(0, 500));
-    
-    const { token, refreshToken, user } = extractAuthData(response);
-    
-    console.log('🔍 LOGIN TOKENS EXTRAITS:', {
-      token: token ? token.substring(0, 30) + '...' : 'MANQUANT',
-      refreshToken: refreshToken ? refreshToken.substring(0, 30) + '...' : 'MANQUANT',
-      hasUser: !!user,
-    });
-    
-    if (token && refreshToken) {
-      apiClient.saveTokens(token, refreshToken);
+    if (accessToken && refreshToken) {
+      apiClient.saveTokens(accessToken, refreshToken);
       if (user) apiClient.saveUser(user);
-    } else {
-      console.error('❌ Login: token ou refreshToken manquant');
     }
     
-    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
+    return { accessToken: accessToken || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
-  // Déconnexion - ne fait QUE nettoyer les tokens, pas de redirection
+  // Déconnexion
   logout(): void {
     apiClient.clearTokens();
   },
@@ -83,11 +69,11 @@ export const authService = {
   // Rafraîchir le token
   async refreshToken(): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>(AUTH.REFRESH);
-    const { token, refreshToken, user } = extractAuthData(response);
-    if (token && refreshToken) {
-      apiClient.saveTokens(token, refreshToken);
+    const { accessToken, refreshToken, user } = extractAuthData(response);
+    if (accessToken && refreshToken) {
+      apiClient.saveTokens(accessToken, refreshToken);
     }
-    return { token: token || '', refreshToken: refreshToken || '', user } as AuthResponse;
+    return { accessToken: accessToken || '', refreshToken: refreshToken || '', user } as AuthResponse;
   },
   
   // Mot de passe oublié
@@ -100,7 +86,7 @@ export const authService = {
     await apiClient.post(AUTH.RESET_PASSWORD, { token, newPassword });
   },
   
-  // Changer le mot de passe
+  // Changer le mot de passe (JSON body)
   async changePassword(data: PasswordChangeRequest): Promise<void> {
     await apiClient.post(AUTH.CHANGE_PASSWORD, data);
   },
@@ -110,7 +96,7 @@ export const authService = {
     await apiClient.get(AUTH.VERIFY_EMAIL, { token });
   },
   
-  // Vérifier si connecté - avec validation du token
+  // Vérifier si connecté
   isAuthenticated(): boolean {
     if (typeof window === 'undefined') return false;
     const token = localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);

@@ -22,15 +22,11 @@ class ApiClient {
     this.baseUrl = API_CONFIG.BASE_URL;
   }
   
-  // Récupérer le token d'accès - avec validation
   private getAccessToken(): string | null {
     if (typeof window === 'undefined') return null;
     const token = localStorage.getItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
-    // Ne JAMAIS retourner un token invalide
     if (!token || token === 'undefined' || token === 'null' || token.split('.').length !== 3) {
       if (token) {
-        // Il y a une valeur mais elle est invalide → la supprimer
-        console.warn('⚠️ Token invalide trouvé dans localStorage, suppression:', token.substring(0, 30));
         localStorage.removeItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
       }
       return null;
@@ -38,46 +34,26 @@ class ApiClient {
     return token;
   }
   
-  // Exposer publiquement pour les téléchargements
   public getAccessTokenPublic(): string | null {
     return this.getAccessToken();
   }
   
-  // Récupérer le refresh token
   private getRefreshToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(API_CONFIG.STORAGE_KEYS.REFRESH_TOKEN);
   }
   
-  // Sauvegarder les tokens - avec validation stricte
   public saveTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
+    if (!accessToken || accessToken === 'undefined' || accessToken === 'null') return;
+    if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') return;
+    if (accessToken.split('.').length !== 3) return;
     
-    // VALIDATION: ne JAMAIS stocker undefined/null/vide
-    if (!accessToken || accessToken === 'undefined' || accessToken === 'null') {
-      console.error('❌ saveTokens: accessToken invalide, ignoré:', accessToken);
-      return;
-    }
-    if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
-      console.error('❌ saveTokens: refreshToken invalide, ignoré:', refreshToken);
-      return;
-    }
-    
-    // VALIDATION: un JWT doit contenir exactement 2 points
-    if (accessToken.split('.').length !== 3) {
-      console.error('❌ saveTokens: accessToken n\'est pas un JWT valide:', accessToken.substring(0, 50));
-      return;
-    }
-    
-    console.log('💾 Sauvegarde des tokens:', {
-      accessToken: accessToken.substring(0, 20) + '...',
-      refreshToken: refreshToken.substring(0, 20) + '...'
-    });
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
   }
+
   
-  // Supprimer les tokens
   public clearTokens(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(API_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
@@ -85,23 +61,29 @@ class ApiClient {
     localStorage.removeItem(API_CONFIG.STORAGE_KEYS.USER);
   }
   
-  // Sauvegarder l'utilisateur
   public saveUser(user: unknown): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(API_CONFIG.STORAGE_KEYS.USER, JSON.stringify(user));
   }
   
-  // Récupérer l'utilisateur
   public getUser<T>(): T | null {
     if (typeof window === 'undefined') return null;
     const user = localStorage.getItem(API_CONFIG.STORAGE_KEYS.USER);
     return user ? JSON.parse(user) : null;
   }
   
-  // Construire l'URL avec les paramètres
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
+    // Si baseUrl est relatif (ex: /api), construire avec window.location.origin
+    let fullUrl: string;
+    if (this.baseUrl.startsWith('http')) {
+      fullUrl = `${this.baseUrl}${endpoint}`;
+    } else if (typeof window !== 'undefined') {
+      fullUrl = `${window.location.origin}${this.baseUrl}${endpoint}`;
+    } else {
+      fullUrl = `http://localhost:3001${this.baseUrl}${endpoint}`;
+    }
     
+    const url = new URL(fullUrl);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -109,22 +91,16 @@ class ApiClient {
         }
       });
     }
-    
     return url.toString();
   }
   
-  // Rafraîchir le token
-  // IMPORTANT: Ne JAMAIS appeler clearTokens() ici - laisser l'appelant décider
   private async refreshAccessToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
-      console.warn('Pas de refresh token disponible');
-      return false;
-    }
+    if (!refreshToken) return false;
     
     try {
-      console.log('Tentative de rafraîchissement du token...');
-      const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`, {
+      const refreshUrl = this.buildUrl(API_CONFIG.ENDPOINTS.AUTH.REFRESH);
+      const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${refreshToken}`,
@@ -134,63 +110,33 @@ class ApiClient {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔄 Réponse refresh brute:', JSON.stringify(data).substring(0, 200));
-        
-        // Essayer plusieurs structures de réponse possibles
         const responseData = data.data || data;
-        const newToken = responseData.token || responseData.accessToken;
+        const newToken = responseData.accessToken || responseData.token;
         const newRefreshToken = responseData.refreshToken;
         
         if (newToken && newRefreshToken) {
-          console.log('Token rafraîchi avec succès');
           this.saveTokens(newToken, newRefreshToken);
           return true;
-        } else {
-          console.error('❌ Refresh: structure de réponse inattendue, token ou refreshToken manquant:', {
-            hasToken: !!newToken,
-            hasRefreshToken: !!newRefreshToken,
-            keys: Object.keys(responseData)
-          });
         }
       }
-      
-      console.warn('Échec du rafraîchissement du token:', response.status);
       return false;
-    } catch (err) {
-      console.error('Erreur lors du rafraîchissement du token:', err);
+    } catch {
       return false;
     }
   }
+
   
-  // Requête principale
   async request<T>(endpoint: string, config: RequestConfig = {}): Promise<ApiResponse<T>> {
     const { method = 'GET', body, headers = {}, params, isFormData = false } = config;
     
     const url = this.buildUrl(endpoint, params);
     const accessToken = this.getAccessToken();
     
-    console.log(`🌐 Requête ${method} ${endpoint}`, {
-      hasToken: !!accessToken,
-      tokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'none'
-    });
+    const requestHeaders: Record<string, string> = { ...headers };
+    if (accessToken) requestHeaders['Authorization'] = `Bearer ${accessToken}`;
+    if (!isFormData) requestHeaders['Content-Type'] = 'application/json';
     
-    const requestHeaders: Record<string, string> = {
-      ...headers,
-    };
-    
-    if (accessToken) {
-      requestHeaders['Authorization'] = `Bearer ${accessToken}`;
-    }
-    
-    if (!isFormData) {
-      requestHeaders['Content-Type'] = 'application/json';
-    }
-    
-    const requestConfig: RequestInit = {
-      method,
-      headers: requestHeaders,
-    };
-    
+    const requestConfig: RequestInit = { method, headers: requestHeaders };
     if (body) {
       requestConfig.body = isFormData ? (body as FormData) : JSON.stringify(body);
     }
@@ -198,7 +144,6 @@ class ApiClient {
     let response: Response;
     try {
       response = await fetch(url, requestConfig);
-      console.log(`📡 Réponse ${method} ${endpoint}:`, response.status);
     } catch (networkErr) {
       const msg = networkErr instanceof Error ? networkErr.message : 'Erreur réseau';
       const isFailedFetch = msg === 'Failed to fetch' || msg.includes('NetworkError');
@@ -212,29 +157,20 @@ class ApiClient {
       } as ApiError;
     }
 
-    // Déterminer si c'est un endpoint d'authentification critique
     const isAuthEndpoint = endpoint.startsWith('/auth/');
 
     // Si 401, essayer de rafraîchir le token
     if (response.status === 401 && accessToken) {
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
-        // Récupérer le nouveau token et reconstruire complètement les headers
         const newAccessToken = this.getAccessToken();
         const newRequestHeaders: Record<string, string> = {
           ...headers,
           'Authorization': `Bearer ${newAccessToken}`,
         };
+        if (!isFormData) newRequestHeaders['Content-Type'] = 'application/json';
         
-        if (!isFormData) {
-          newRequestHeaders['Content-Type'] = 'application/json';
-        }
-        
-        const newRequestConfig: RequestInit = {
-          method,
-          headers: newRequestHeaders,
-        };
-        
+        const newRequestConfig: RequestInit = { method, headers: newRequestHeaders };
         if (body) {
           newRequestConfig.body = isFormData ? (body as FormData) : JSON.stringify(body);
         }
@@ -253,8 +189,6 @@ class ApiClient {
           } as ApiError;
         }
       } else {
-        // Le refresh a échoué
-        // SEULEMENT clear les tokens si c'est un endpoint auth (comme /auth/me)
         if (isAuthEndpoint) {
           this.clearTokens();
           throw {
@@ -264,7 +198,6 @@ class ApiClient {
             timestamp: new Date().toISOString(),
           } as ApiError;
         }
-        // Pour les endpoints non-auth, juste signaler l'erreur sans toucher aux tokens
         throw {
           success: false,
           message: 'Accès non autorisé à cette ressource.',
@@ -274,12 +207,8 @@ class ApiClient {
       }
     }
     
-    // Si toujours 401 après refresh
     if (response.status === 401) {
-      // SEULEMENT clear les tokens si c'est un endpoint auth critique
-      if (isAuthEndpoint) {
-        this.clearTokens();
-      }
+      if (isAuthEndpoint) this.clearTokens();
       throw {
         success: false,
         message: 'Non autorisé',
@@ -287,28 +216,24 @@ class ApiClient {
         timestamp: new Date().toISOString(),
       } as ApiError;
     }
+
     
-    // Vérifier le Content-Type et le corps de la réponse
-    const contentType = response.headers.get('content-type');
-    const isJsonContentType = contentType?.includes('application/json');
+    // Parse response body
     let data: unknown;
     let responseText = '';
 
     try {
       responseText = await response.text();
-    } catch (readErr) {
+    } catch {
       throw new Error('Impossible de lire la réponse du serveur');
     }
 
-    // Normaliser: BOM et espaces (certains backends renvoient {} sans Content-Type ou avec BOM)
     const trimmed = responseText.replace(/^\uFEFF/, '').trim();
 
     try {
-      // Réponse vide → traiter comme objet vide (certains endpoints renvoient 200 sans body)
       if (trimmed === '') {
         data = {};
       } else {
-        // Chercher le premier JSON valide dans la réponse (au cas où il y aurait du contenu avant/après)
         let jsonText = trimmed;
         const firstBrace = jsonText.indexOf('{');
         const firstBracket = jsonText.indexOf('[');
@@ -346,31 +271,18 @@ class ApiClient {
         }
 
         data = JSON.parse(jsonText);
-        console.log('📦 Données parsées:', data);
       }
     } catch (parseError: unknown) {
-      // Pour toute réponse 2xx avec corps invalide, ne pas faire échouer : traiter comme corps vide
       if (response.ok) {
         data = trimmed === '[]' ? [] : {};
       } else {
         const errMsg = parseError instanceof Error ? parseError.message : 'Erreur lors du parsing de la réponse du serveur';
-        console.error('Erreur parsing JSON:', {
-          error: errMsg,
-          url,
-          status: response.status,
-          contentType,
-          responseLength: responseText.length,
-          preview: responseText.substring(0, 1000),
-        });
         throw {
           success: false,
           message: errMsg.includes('JSON')
             ? 'Le serveur a retourné une réponse invalide. Vérifiez que le backend fonctionne correctement.'
             : errMsg,
-          error: {
-            code: 'JSON_PARSE_ERROR',
-            details: `Impossible de parser la réponse JSON: ${errMsg}`,
-          },
+          error: { code: 'JSON_PARSE_ERROR', details: `Impossible de parser la réponse JSON: ${errMsg}` },
           timestamp: new Date().toISOString(),
         } as ApiError;
       }
@@ -383,7 +295,6 @@ class ApiClient {
     return data as ApiResponse<T>;
   }
   
-  // Méthodes utilitaires
   async get<T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', params });
   }
@@ -405,6 +316,5 @@ class ApiClient {
   }
 }
 
-// Instance singleton
 export const apiClient = new ApiClient();
 export default apiClient;

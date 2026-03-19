@@ -33,8 +33,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    firstName: '',
-    lastName: '',
+    fullName: '',
     password: '',
     acceptTerms: false,
   });
@@ -42,7 +41,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.username || !formData.email || !formData.firstName || !formData.lastName || !formData.password) {
+    if (!formData.username || !formData.email || !formData.fullName || !formData.password) {
       toast.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -64,8 +63,7 @@ export default function RegisterPage() {
       await register({
         username: formData.username,
         email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        fullName: formData.fullName,
         password: formData.password,
       });
       toast.success('Compte créé avec succès ! Bienvenue !');
@@ -88,39 +86,16 @@ export default function RegisterPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* First Name */}
+        {/* Nom complet */}
         <div className="space-y-2">
-          <Label htmlFor="firstName">Prénom *</Label>
+          <Label htmlFor="fullName">Nom complet *</Label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              id="firstName"
+              id="fullName"
               type="text"
-              placeholder="Jean"
-              value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-              className="pl-10"
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-
-        {/* Last Name */}
-        <div className="space-y-2">
-          <Label htmlFor="lastName">Nom *</Label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="lastName"
-              type="text"
-              placeholder="Dupont"
-              value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              className="pl-10"
-              disabled={isLoading}
-            />
-          </div>
-        </div>
+              placeholder="Jean Dupont"
+              value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
               className="pl-10"
               disabled={isLoading}

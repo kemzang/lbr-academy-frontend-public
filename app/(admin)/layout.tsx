@@ -139,18 +139,11 @@ export default function AdminLayout({
   useEffect(() => {
     if (!isReady) return;
 
-    console.log('🔍 Admin Layout - Vérification:', {
-      isAuthenticated,
-      hasUser: !!user,
-      userRole: user?.role
-    });
-
     // Vérifier le localStorage directement - valider que c'est un vrai JWT
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('lbr_access_token') : null;
     const hasToken = storedToken && storedToken !== 'undefined' && storedToken !== 'null' && storedToken.split('.').length === 3;
     
     if (!hasToken) {
-      console.log('❌ Pas de token valide, redirection login');
       // Nettoyer le token invalide s'il existe
       if (storedToken) localStorage.removeItem('lbr_access_token');
       router.push('/login?redirect=' + encodeURIComponent(window.location.pathname));
@@ -159,7 +152,6 @@ export default function AdminLayout({
 
     // Si on a un user et qu'il n'est pas admin
     if (user && user.role !== 'ADMIN') {
-      console.log('❌ Pas admin, redirection dashboard');
       router.push('/dashboard');
     }
   }, [isReady, isAuthenticated, user, router]);

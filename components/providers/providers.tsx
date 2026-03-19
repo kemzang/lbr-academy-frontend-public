@@ -14,18 +14,15 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // NE PLUS appeler checkAuth automatiquement
-  // const checkAuth = useAuthStore((s) => s.checkAuth);
-  // const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  // const [hasChecked, setHasChecked] = useState(false);
+  const checkAuth = useAuthStore((s) => s.checkAuth);
+  const [hasChecked, setHasChecked] = useState(false);
 
-  // useEffect(() => {
-  //   // Ne vérifier qu'une seule fois au montage initial
-  //   if (!hasChecked) {
-  //     checkAuth();
-  //     setHasChecked(true);
-  //   }
-  // }, [checkAuth, hasChecked]);
+  useEffect(() => {
+    if (!hasChecked) {
+      checkAuth();
+      setHasChecked(true);
+    }
+  }, [checkAuth, hasChecked]);
 
   return (
     <ThemeProvider

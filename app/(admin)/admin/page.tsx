@@ -45,14 +45,6 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Debug: afficher l'état de l'authentification
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('lbr_access_token');
-      console.log('Admin Dashboard - Token présent:', !!token);
-    }
-  }, []);
-
   const loadData = async (retryCount = 0) => {
     try {
       setIsLoading(true);
@@ -71,7 +63,6 @@ export default function AdminDashboardPage() {
       
       // Si "Non autorisé" et qu'on n'a pas encore retry, attendre et réessayer
       if ((msg.includes('Non autorisé') || msg.includes('UNAUTHORIZED')) && retryCount < 2) {
-        console.log(`⏳ Retry chargement stats (${retryCount + 1}/2)...`);
         setTimeout(() => loadData(retryCount + 1), 2000);
         return;
       }
